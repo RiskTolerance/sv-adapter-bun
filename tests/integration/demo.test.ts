@@ -50,6 +50,15 @@ describe('demo app', () => {
     expect(res.status).toBe(404);
   });
 
+  test('server-renders a component route at runtime', async () => {
+    // /sverdle is not prerendered — a 200 here proves runtime Svelte SSR
+    // works in the bundled server (regression for the historical Bun.build
+    // lifecycle_outside_component failure, upstream #82)
+    const res = await fetch(`${plain.baseUrl}/sverdle`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toContain('<form');
+  });
+
   test('serves an endpoint that imports an unprefixed Node built-in', async () => {
     const res = await fetch(`${plain.baseUrl}/hash`);
     expect(res.status).toBe(200);
