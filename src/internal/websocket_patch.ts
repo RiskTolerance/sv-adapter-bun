@@ -26,8 +26,10 @@ const steps: PatchStep[] = [
   {
     description:
       'destructure websocket from the hooks module and return it from get_hooks()',
-    pattern: /(\({handle,)((.|\s)*?return {)/,
-    replacement: '$1websocket,$2websocket,',
+    // tolerates bundler formatting differences: rolldown emitted `({handle,`,
+    // Bun.build emits `({ handle,` (and may rename: `({ handle: handle2,`)
+    pattern: /\({\s*(handle[,:])((.|\s)*?return {)/,
+    replacement: '({ websocket, $1$2websocket,',
     requires_server_hooks: true,
   },
   {

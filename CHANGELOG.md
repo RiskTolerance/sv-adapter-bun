@@ -2,8 +2,24 @@
 
 ## Unreleased
 
+### Added
+
+- **`idleTimeout` adapter option**
+  ([#2](https://github.com/RiskTolerance/sv-adapter-bun/issues/2)): build-time
+  default for Bun.serve's idle timeout, overridable at runtime with the
+  `IDLE_TIMEOUT` env var. Both are validated as integers in 0–255 (Bun's cap;
+  0 disables the timeout) with clear errors instead of opaque Bun failures.
+
 ### Changed
 
+- **Server bundling switched from rolldown to `Bun.build`**
+  ([#6](https://github.com/RiskTolerance/sv-adapter-bun/issues/6)): removes
+  the adapter's only runtime dependency (a rolldown beta). Building now
+  requires Bun >= 1.3.6; plain `vite build` under Node still works — the
+  adapter spawns a `bun` subprocess for the bundling step. Code splitting is
+  enabled, which also fixes a latent crash when serving builds compiled with
+  `NODE_ENV` set to a non-production value (Svelte's dev SSR runtime broke
+  under Bun.build's lazy module initializers without splitting).
 - **WebSocket patch now fails the build loudly when SvelteKit's internals
   change shape** ([#3](https://github.com/RiskTolerance/sv-adapter-bun/issues/3)):
   the regex patch of kit's built server previously no-op'd silently when a

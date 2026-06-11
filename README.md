@@ -9,6 +9,9 @@
 
 ## :zap: Usage
 
+> [!NOTE]
+> Building requires Bun >= 1.3.6 — the server is bundled with `Bun.build`. Plain `vite build` (under Node) works too: the adapter spawns a `bun` subprocess for the bundling step, so the `bun` executable must be on `PATH`.
+
 Install with `bun add -d @risk-tolerance/svelte-adapter-bun`, then add the adapter to your `svelte.config.js`:
 
 ```js

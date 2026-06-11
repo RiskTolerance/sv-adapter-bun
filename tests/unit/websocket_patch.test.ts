@@ -8,20 +8,37 @@ const without_hooks = await Bun.file(
   new URL('../fixtures/kit-server-unpatched-no-hooks.txt', import.meta.url)
     .pathname
 ).text();
+const with_hooks_bun_build = await Bun.file(
+  new URL('../fixtures/kit-server-unpatched-bun-build.txt', import.meta.url)
+    .pathname
+).text();
 
 describe('patch_server_websocket_handler', () => {
-  test('threads the websocket hook through the built server', () => {
+  test('threads the websocket hook through a rolldown-bundled server', () => {
     const patched = patch_server_websocket_handler(with_hooks, true);
 
     // get_hooks() declares, destructures and returns websocket
     expect(patched).toContain('async function get_hooks() {let websocket;');
-    expect(patched).toContain('({handle,websocket, handleFetch');
+    expect(patched).toContain('({ websocket, handle, handleFetch');
     expect(patched).toMatch(/return {\s*websocket,\s*handle,/);
 
     // the resolved hooks options include it, defaulting to null
     expect(patched).toContain('websocket: module.websocket || null,');
 
     // the Server class exposes an accessor
+    expect(patched).toContain(
+      'websocket() {return this.#options.hooks.websocket}'
+    );
+  });
+
+  test('threads the websocket hook through a Bun.build-bundled server', () => {
+    const patched = patch_server_websocket_handler(with_hooks_bun_build, true);
+
+    // Bun.build emits a spaced destructure (`({ handle,` with a space)
+    expect(patched).toContain('async function get_hooks() {let websocket;');
+    expect(patched).toContain('({ websocket, handle, handleFetch');
+    expect(patched).toMatch(/return {\s*websocket,\s*handle,/);
+    expect(patched).toContain('websocket: module.websocket || null,');
     expect(patched).toContain(
       'websocket() {return this.#options.hooks.websocket}'
     );
@@ -65,7 +82,7 @@ describe('patch_server_websocket_handler', () => {
       'async function get_hooks() {',
       'async function getHooks() {',
     ],
-    ['hooks destructuring', '({handle,', '({ handle,'],
+    ['hooks destructuring', '({handle,', '({handler,'],
     [
       'Server.init signature',
       'async init({ env, read }) {',

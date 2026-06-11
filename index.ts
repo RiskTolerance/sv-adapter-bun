@@ -1,8 +1,9 @@
 import type { Adapter, Builder } from '@sveltejs/kit';
+import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { rolldown } from 'rolldown';
+import { bundle_server, type BundleConfig } from './src/internal/bundle';
 import { patch_server_websocket_handler } from './src/internal/websocket_patch';
 
 interface AdapterOptions {
@@ -75,57 +76,54 @@ export default function (options: AdapterOptions = {}): Adapter {
 
       const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
 
-      const entrypoints: Record<string, string> = {
-        index: `${tmp}/index.js`,
-        manifest: `${tmp}/manifest.js`,
-      };
+      const entrypoints = [`${tmp}/index.js`, `${tmp}/manifest.js`];
 
       if (builder.hasServerInstrumentationFile?.()) {
-        entrypoints['instrumentation.server'] =
-          `${tmp}/instrumentation.server.js`;
+        entrypoints.push(`${tmp}/instrumentation.server.js`);
       }
 
-      // ! Bun.build is not working for some reason
-      // ! It will build successfully but the server will throw [500] GET / Error: https://svelte.dev/e/lifecycle_outside_component
-      // const result = await Bun.build({
-      // 	entrypoints: Object.values(entrypoints),
-      // 	external: [
-      // 		// dependencies could have deep exports, so we need a regex
-      // 		...Object.keys(pkg.dependencies || {}).map((d) => new RegExp(`^${d}(\\/.*)?$`).toString())
-      // 	],
-      // 	target: 'bun',
-      // 	minify: false,
-      // 	outdir: `${out}/server`,
-      // });
-
-      // if (!result.success) {
-      // 	console.error('Build failed:', result.logs);
-      // 	process.exit(1);
-      // }
-
-      const bundle = await rolldown({
-        input: entrypoints,
+      const bundle_config: BundleConfig = {
+        entrypoints,
+        outdir: `${out}/server`,
         external: [
-          // dependencies could have deep exports, so we need a regex
+          // dependencies could have deep exports, so name + name/*
           ...Object.keys({
             ...pkg.dependencies,
             ...pkg.peerDependencies,
             ...pkg.optionalDependencies,
-          }).map(d => new RegExp(`^${d}(\\/.*)?$`)),
+          }).flatMap(d => [d, `${d}/*`]),
           // Node.js built-in modules, with and without the node: prefix
-          /^node:/,
-          ...builtinModules.map(m => new RegExp(`^${m}(\\/.*)?$`)),
+          'node:*',
+          ...builtinModules.flatMap(m => [m, `${m}/*`]),
           // Bun runtime modules (bun, bun:sqlite, bun:test, ...)
-          /^bun(:.*)?$/,
+          'bun',
+          'bun:*',
         ],
-      });
+      };
 
-      await bundle.write({
-        dir: `${out}/server`,
-        format: 'esm',
-        sourcemap: true,
-        chunkFileNames: 'chunks/[name]-[hash].js',
-      });
+      // Bundling needs Bun.build (Bun >= 1.3.6 — older versions produced a
+      // bundle that threw lifecycle_outside_component at runtime, upstream
+      // #82). Under `bun --bun vite build` the Bun global is right here;
+      // under plain `vite build` (Node) we delegate to a Bun subprocess.
+      if (typeof Bun !== 'undefined') {
+        await bundle_server(bundle_config);
+      } else {
+        const config_path = `${tmp}/bundle-config.json`;
+        writeFileSync(config_path, JSON.stringify(bundle_config));
+        const worker = fileURLToPath(
+          new URL('./bundle-worker.js', import.meta.url)
+        );
+        const spawned = spawnSync('bun', [worker, config_path], {
+          stdio: 'inherit',
+        });
+        if (spawned.error || spawned.status !== 0) {
+          throw new Error(
+            `Server bundling failed${spawned.error ? ` (${spawned.error.message})` : ''}. ` +
+              `svelte-adapter-bun needs the bun executable on PATH at build time ` +
+              `(or run the build with 'bun --bun vite build').`
+          );
+        }
+      }
 
       builder.log.minor('Patching server for WebSocket support');
       const hooks_file = builder.config.kit.files.hooks.server;

@@ -24,3 +24,13 @@ await build({
   format: 'esm',
 });
 console.timeEnd('Build: server');
+
+console.time('Build: bundle worker');
+await build({
+  entrypoints: ['./src/bundle-worker.ts'],
+  outdir: 'dist',
+  target: 'bun',
+  format: 'esm',
+  minify: true,
+});
+console.timeEnd('Build: bundle worker');
