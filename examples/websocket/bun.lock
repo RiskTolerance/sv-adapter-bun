@@ -5,7 +5,7 @@
     "": {
       "name": "websocket",
       "devDependencies": {
-        "@risktolerance/svelte-adapter-bun": "link:@risktolerance/svelte-adapter-bun",
+        "@risk-tolerance/svelte-adapter-bun": "link:@risk-tolerance/svelte-adapter-bun",
         "@sveltejs/adapter-node": "^5.2.12",
         "@sveltejs/kit": "^2.22.0",
         "@sveltejs/vite-plugin-svelte": "^6.0.0",
@@ -81,7 +81,7 @@
 
     "@polka/url": ["@polka/url@1.0.0-next.29", "", {}, "sha512-wwQAWhWSuHaag8c4q/KN/vCoeOJYshAIvMQwD4GpSb3OiZklFfvAgmj0VCBBImRpuF/aFgIRzllXlVX93Jevww=="],
 
-    "@risktolerance/svelte-adapter-bun": ["@risktolerance/svelte-adapter-bun@link:@risktolerance/svelte-adapter-bun", {}],
+    "@risk-tolerance/svelte-adapter-bun": ["@risk-tolerance/svelte-adapter-bun@link:@risk-tolerance/svelte-adapter-bun", {}],
 
     "@rollup/plugin-commonjs": ["@rollup/plugin-commonjs@29.0.3", "", { "dependencies": { "@rollup/pluginutils": "^5.0.1", "commondir": "^1.0.1", "estree-walker": "^2.0.2", "fdir": "^6.2.0", "is-reference": "1.2.1", "magic-string": "^0.30.3", "picomatch": "^4.0.2" }, "peerDependencies": { "rollup": "^2.68.0||^3.0.0||^4.0.0" }, "optionalPeers": ["rollup"] }, "sha512-ZaOxZceP7SOUW7Lqw5IRVweSQYWaeIPnXIGLiB690EBA3FGJTO40EEr2L5yZplJWsgTCogILRSpcAe7+U0Otdg=="],
 

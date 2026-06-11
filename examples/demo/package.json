@@ -18,7 +18,7 @@
     "@sveltejs/kit": "^2.22.0",
     "@sveltejs/vite-plugin-svelte": "^6.0.0",
     "svelte": "^5.25.0",
-    "@risktolerance/svelte-adapter-bun": "link:@risktolerance/svelte-adapter-bun",
+    "@risk-tolerance/svelte-adapter-bun": "link:@risk-tolerance/svelte-adapter-bun",
     "svelte-check": "^4.0.0",
     "typescript": "^5.0.0",
     "vite": "^7.0.4"

@@ -1,6 +1,6 @@
 # Releasing
 
-Manual release checklist for `@risktolerance/svelte-adapter-bun`.
+Manual release checklist for `@risk-tolerance/svelte-adapter-bun`.
 
 1. CI is green on `main` (including the integration suite).
 2. Update the version in `package.json` and add a dated section to
@@ -17,7 +17,7 @@ Manual release checklist for `@risktolerance/svelte-adapter-bun`.
    `README.md`, `LICENSE` and `package.json`.
 
 4. Confirm you are logged in to npm (`npm whoami`) and a member of the
-   `@risktolerance` scope.
+   `risk-tolerance` npm account (scope matches the username).
 5. Publish (`publishConfig.access` is already `public`):
 
    ```bash

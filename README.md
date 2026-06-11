@@ -1,4 +1,4 @@
-# @risktolerance/svelte-adapter-bun
+# @risk-tolerance/svelte-adapter-bun
 
 [![CI](https://github.com/RiskTolerance/sv-adapter-bun/actions/workflows/ci.yml/badge.svg)](https://github.com/RiskTolerance/sv-adapter-bun/actions/workflows/ci.yml)
 
@@ -9,11 +9,11 @@
 
 ## :zap: Usage
 
-Install with `bun add -d @risktolerance/svelte-adapter-bun`, then add the adapter to your `svelte.config.js`:
+Install with `bun add -d @risk-tolerance/svelte-adapter-bun`, then add the adapter to your `svelte.config.js`:
 
 ```js
 // svelte.config.js
-import adapter from '@risktolerance/svelte-adapter-bun';
+import adapter from '@risk-tolerance/svelte-adapter-bun';
 
 export default {
   kit: {
@@ -38,7 +38,7 @@ The adapter can be configured with various options:
 
 ```js
 // svelte.config.js
-import adapter from '@risktolerance/svelte-adapter-bun';
+import adapter from '@risk-tolerance/svelte-adapter-bun';
 export default {
   kit: {
     adapter: adapter({

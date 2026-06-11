@@ -1,4 +1,4 @@
-import adapter from '@risktolerance/svelte-adapter-bun';
+import adapter from '@risk-tolerance/svelte-adapter-bun';
 import { vitePreprocess } from '@sveltejs/vite-plugin-svelte';
 
 /** @type {import('@sveltejs/kit').Config} */
