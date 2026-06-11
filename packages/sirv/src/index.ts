@@ -11,7 +11,8 @@ export type NextHandler = () => Response | Promise<Response>;
 
 export type RequestHandler = (
   req: Request,
-  next?: NextHandler
+  next?: NextHandler,
+  pathname?: string
 ) => Response | Promise<Response>;
 
 export interface Options {
@@ -101,6 +102,8 @@ function send(
 
   if (req.headers.has('range')) {
     code = 206;
+    // clone — the cached headers must not carry range fields
+    data = { ...data, headers: new Headers(data.headers) };
     const [x, y] = req.headers.get('range')!.replace('bytes=', '').split('-');
     if (x !== undefined && y !== undefined) {
       let end = (opts.end = parseInt(y, 10) || data.stats.size - 1);
@@ -209,10 +212,16 @@ export default function (dir: string, opts: Options = {}): RequestHandler {
     } // keep
     else if (!opts.dotfiles && /(^\.|[\\+|/+]\.)/.test(name)) return;
 
-    const headers = toHeaders(name, stats, isEtag);
+    let headers = toHeaders(name, stats, isEtag);
     if (CacheControl) headers.set('Cache-Control', CacheControl);
+    if (gzips || brots) headers.set('Vary', 'Accept-Encoding');
 
-    FILES['/' + name.normalize().replace(/\\+/g, '/')] = {
+    // setHeaders is deterministic per file, so apply it once here instead
+    // of cloning + mutating the cached headers on every request
+    const pathname = '/' + name.normalize().replace(/\\+/g, '/');
+    if (setHeaders) headers = setHeaders(headers, pathname, stats);
+
+    FILES[pathname] = {
       abs,
       stats,
       headers,
@@ -226,12 +235,16 @@ export default function (dir: string, opts: Options = {}): RequestHandler {
       FILES
     );
 
-  return (req, next) => {
+  return (req, next, rawPathname) => {
     const extns = [''];
-    let pathname = new URL(req.url).pathname;
-    const val = req.headers.get('accept-encoding') || '';
-    if (gzips && val.includes('gzip')) extns.unshift(...gzips);
-    if (brots && /(br|brotli)/i.test(val)) extns.unshift(...brots);
+    let pathname = rawPathname ?? new URL(req.url).pathname;
+    // range requests get the identity encoding — a byte range of a
+    // precompressed variant is undecodable for the client
+    if (!req.headers.has('range')) {
+      const val = req.headers.get('accept-encoding') || '';
+      if (gzips && val.includes('gzip')) extns.unshift(...gzips);
+      if (brots && /(br|brotli)/i.test(val)) extns.unshift(...brots);
+    }
     extns.push(...extensions); // [...br, ...gz, orig, ...exts]
 
     if (pathname.indexOf('%') !== -1) {
@@ -242,7 +255,7 @@ export default function (dir: string, opts: Options = {}): RequestHandler {
       }
     }
 
-    let data =
+    const data =
       lookup(pathname, extns) ||
       (isMatch(pathname, ignores) && lookup(fallback, extns));
     if (!data) return next ? next() : isNotFound(req);
@@ -256,20 +269,9 @@ export default function (dir: string, opts: Options = {}): RequestHandler {
       });
     }
 
-    data = {
-      ...data,
-      // clone a new headers to prevent the cached one getting modified
-      headers: new Headers(data.headers),
-    };
-
-    if (gzips || brots) {
-      data.headers.set('Vary', 'Accept-Encoding');
-    }
-
-    if (setHeaders) {
-      data.headers = setHeaders(data.headers, pathname, data.stats);
-    }
-
+    // the Response constructor copies the headers, so the cached Headers
+    // object is safe to share across requests; send() clones it only for
+    // range responses
     return send(req, data);
   };
 }
