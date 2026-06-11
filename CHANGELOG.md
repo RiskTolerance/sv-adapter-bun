@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **WebSocket patch now fails the build loudly when SvelteKit's internals
+  change shape** ([#3](https://github.com/RiskTolerance/sv-adapter-bun/issues/3)):
+  the regex patch of kit's built server previously no-op'd silently when a
+  pattern stopped matching, shipping a server whose WebSocket support had
+  vanished. Each patch step is now verified and a clear build error points
+  here when kit drifts. Apps without a `hooks.server` file are recognized and
+  build as plain HTTP servers, as before.
+
 ## 1.1.0 — 2026-06-11
 
 First release of the maintained fork, published as
