@@ -1,9 +1,12 @@
 import type { Adapter, Builder } from '@sveltejs/kit';
 import { spawnSync } from 'node:child_process';
 import { existsSync, readFileSync, writeFileSync } from 'node:fs';
-import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
-import { bundle_server, type BundleConfig } from './src/internal/bundle';
+import {
+  bundle_server,
+  type BundleConfig,
+  type Bundler,
+} from './src/internal/bundle';
 import { patch_server_websocket_handler } from './src/internal/websocket_patch';
 
 interface AdapterOptions {
@@ -16,6 +19,12 @@ interface AdapterOptions {
    * Overridable at runtime with the IDLE_TIMEOUT environment variable.
    */
   idleTimeout?: number;
+  /**
+   * Which bundler produces the server bundle. 'bun' (default) uses Bun.build
+   * and needs Bun >= 1.3.6 at build time; 'rolldown' runs in-process under
+   * Node or Bun and requires rolldown in your devDependencies.
+   */
+  bundler?: Bundler;
 }
 
 const files = fileURLToPath(new URL('./files', import.meta.url).href);
@@ -27,7 +36,14 @@ export default function (options: AdapterOptions = {}): Adapter {
     envPrefix = '',
     serveAssets = true,
     idleTimeout,
+    bundler = 'bun',
   } = options;
+
+  if (bundler !== 'bun' && bundler !== 'rolldown') {
+    throw new Error(
+      `Invalid bundler adapter option: ${JSON.stringify(bundler)}. Expected 'bun' or 'rolldown'.`
+    );
+  }
 
   if (
     idleTimeout !== undefined &&
@@ -83,29 +99,22 @@ export default function (options: AdapterOptions = {}): Adapter {
       }
 
       const bundle_config: BundleConfig = {
+        bundler,
         entrypoints,
         outdir: `${out}/server`,
-        external: [
-          // dependencies could have deep exports, so name + name/*
-          ...Object.keys({
-            ...pkg.dependencies,
-            ...pkg.peerDependencies,
-            ...pkg.optionalDependencies,
-          }).flatMap(d => [d, `${d}/*`]),
-          // Node.js built-in modules, with and without the node: prefix
-          'node:*',
-          ...builtinModules.flatMap(m => [m, `${m}/*`]),
-          // Bun runtime modules (bun, bun:sqlite, bun:test, ...)
-          'bun',
-          'bun:*',
-        ],
+        external_packages: Object.keys({
+          ...pkg.dependencies,
+          ...pkg.peerDependencies,
+          ...pkg.optionalDependencies,
+        }),
       };
 
-      // Bundling needs Bun.build (Bun >= 1.3.6 — older versions produced a
-      // bundle that threw lifecycle_outside_component at runtime, upstream
-      // #82). Under `bun --bun vite build` the Bun global is right here;
-      // under plain `vite build` (Node) we delegate to a Bun subprocess.
-      if (typeof Bun !== 'undefined') {
+      // The bun bundler needs Bun.build (Bun >= 1.3.6 — older versions
+      // produced a bundle that threw lifecycle_outside_component at runtime,
+      // upstream #82). Under `bun --bun vite build` the Bun global is right
+      // here; under plain `vite build` (Node) we delegate to a Bun
+      // subprocess. Rolldown runs in-process either way.
+      if (bundler === 'rolldown' || typeof Bun !== 'undefined') {
         await bundle_server(bundle_config);
       } else {
         const config_path = `${tmp}/bundle-config.json`;

@@ -10,9 +10,10 @@ export interface RunningServer {
   baseUrl: string;
 }
 
-function run(cmd: string[], cwd: string) {
+function run(cmd: string[], cwd: string, env: Record<string, string> = {}) {
   const result = Bun.spawnSync(cmd, {
     cwd,
+    env: { ...process.env, ...env },
     stdin: 'ignore',
     stdout: 'pipe',
     stderr: 'pipe',
@@ -34,11 +35,11 @@ function run(cmd: string[], cwd: string) {
  * package name must be registered (bun link) and the adapter dist/ built
  * before the example installs — its export map points at dist/.
  */
-export function buildExample(dir: string) {
+export function buildExample(dir: string, env: Record<string, string> = {}) {
   run(['bun', 'link'], ROOT);
   run(['bun', 'run', 'build'], ROOT);
   run(['bun', 'install'], dir);
-  run(['bun', 'run', 'build'], dir);
+  run(['bun', 'run', 'build'], dir, env);
 }
 
 export async function startServer(
