@@ -17,21 +17,31 @@ if (Number.isNaN(body_size_limit)) {
 const idle_timeout = parseInt(env('IDLE_TIMEOUT', '10'), 10);
 const { fetch: handlerFetch, websocket } = getHandler();
 
-const options = {
-  idleTimeout: idle_timeout,
+const base_options = {
   maxRequestBodySize: body_size_limit,
   fetch: handlerFetch,
-  ...(path ? { unix: path } : { hostname: host, port: port }),
-  ...(websocket ? { websocket } : {}),
+};
+const tcp_options = {
+  hostname: host,
+  port: port,
+  // Bun's types forbid idleTimeout on unix sockets (the runtime ignores it)
+  idleTimeout: idle_timeout,
 };
 
-const server = Bun.serve(options);
+// explicit branches because Bun.serve's option union rejects
+// optionally-undefined websocket and unix keys
+const server = websocket
+  ? path
+    ? Bun.serve({ ...base_options, websocket, unix: path })
+    : Bun.serve({ ...base_options, websocket, ...tcp_options })
+  : path
+    ? Bun.serve({ ...base_options, unix: path })
+    : Bun.serve({ ...base_options, ...tcp_options });
 
 console.log(`Listening on ${server.url} ${websocket ? 'with WebSocket' : ''}`);
 
 async function graceful_shutdown(reason: 'SIGINT' | 'SIGTERM' | 'IDLE') {
   console.info('Stopping server...');
-  // @ts-expect-error custom events cannot be typed
   process.emit('sveltekit:shutdown', reason);
   await server.stop(true);
   console.info('Stopped server');

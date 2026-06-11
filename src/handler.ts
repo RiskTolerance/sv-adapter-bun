@@ -75,7 +75,7 @@ function serve_prerendered(): RequestHandler {
   };
 }
 
-const ssr = async (request: Request, bunServer: Bun.Server) => {
+const ssr = async (request: Request, bunServer: Bun.Server<undefined>) => {
   const baseOrigin =
     origin ||
     get_origin(request.headers, { protocol_header, host_header, port_header });
@@ -131,7 +131,7 @@ export const getHandler = () => {
     serveAssets && serve_prerendered(),
   ].filter(Boolean) as RequestHandler[];
 
-  const handler = (request: Request, server: Bun.Server) => {
+  const handler = (request: Request, server: Bun.Server<undefined>) => {
     function handle(i: number): Response | Promise<Response> {
       if (i < staticHandlers.length) {
         return staticHandlers[i]!(request, () => handle(i + 1));
