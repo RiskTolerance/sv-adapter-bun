@@ -3,7 +3,7 @@
 ## 1.1.0 — 2026-06-11
 
 First release of the maintained fork, published as
-`@risktolerance/svelte-adapter-bun`. Version numbering continues from
+`@risk-tolerance/svelte-adapter-bun`. Version numbering continues from
 upstream [gornostay25/svelte-adapter-bun](https://github.com/gornostay25/svelte-adapter-bun) v1.0.1.
 
 ### Security
@@ -50,7 +50,7 @@ upstream [gornostay25/svelte-adapter-bun](https://github.com/gornostay25/svelte-
 
 ### Changed
 
-- Package renamed to `@risktolerance/svelte-adapter-bun`; repository moved
+- Package renamed to `@risk-tolerance/svelte-adapter-bun`; repository moved
   to [RiskTolerance/sv-adapter-bun](https://github.com/RiskTolerance/sv-adapter-bun).
 - Examples consume the adapter via bun's `link:` protocol instead of
   `file:../../` (Bun copies `file:` folder dependencies wholesale, which was
