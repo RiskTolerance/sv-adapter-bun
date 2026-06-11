@@ -1,6 +1,7 @@
 import { env } from 'ENV';
 import { getHandler } from 'HANDLER';
 import process from 'node:process';
+import { parse_as_bytes } from './internal/parse';
 
 export const path = env('SOCKET_PATH', false);
 export const host = env('HOST', '0.0.0.0');
@@ -43,21 +44,3 @@ process.on('SIGTERM', graceful_shutdown);
 process.on('SIGINT', graceful_shutdown);
 
 export { server };
-
-/**
- * Parses the given value into number of bytes.
- *
- * @param {string} value - Size in bytes. Can also be specified with a unit suffix kilobytes (K), megabytes (M), or gigabytes (G).
- * @returns {number}
- */
-function parse_as_bytes(value: string): number {
-  const units = value.at(-1)?.toUpperCase();
-  const multiplier =
-    {
-      B: 1,
-      K: 1024,
-      M: 1024 * 1024,
-      G: 1024 * 1024 * 1024,
-    }[units ?? 'B'] ?? 1;
-  return Number(multiplier !== 1 ? value.slice(0, -1) : value) * multiplier;
-}
