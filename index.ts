@@ -10,6 +10,11 @@ interface AdapterOptions {
   precompress?: boolean;
   envPrefix?: string;
   serveAssets?: boolean;
+  /**
+   * Default idle timeout for Bun.serve in seconds (0 disables, max 255).
+   * Overridable at runtime with the IDLE_TIMEOUT environment variable.
+   */
+  idleTimeout?: number;
 }
 
 const files = fileURLToPath(new URL('./files', import.meta.url).href);
@@ -20,7 +25,17 @@ export default function (options: AdapterOptions = {}): Adapter {
     precompress = true,
     envPrefix = '',
     serveAssets = true,
+    idleTimeout,
   } = options;
+
+  if (
+    idleTimeout !== undefined &&
+    (!Number.isInteger(idleTimeout) || idleTimeout < 0 || idleTimeout > 255)
+  ) {
+    throw new Error(
+      `Invalid idleTimeout adapter option: ${idleTimeout}. Bun.serve accepts an integer between 0 (disabled) and 255 seconds.`
+    );
+  }
 
   return {
     name: 'svelte-adapter-bun',
@@ -126,7 +141,7 @@ export default function (options: AdapterOptions = {}): Adapter {
           MANIFEST: './server/manifest.js',
           SERVER: './server/index.js',
           ENV_PREFIX: JSON.stringify(envPrefix),
-          BUILD_OPTIONS: JSON.stringify({ serveAssets }),
+          BUILD_OPTIONS: JSON.stringify({ serveAssets, idleTimeout }),
         },
       });
 

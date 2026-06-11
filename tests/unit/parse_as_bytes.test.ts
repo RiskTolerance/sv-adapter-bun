@@ -1,5 +1,25 @@
 import { describe, expect, test } from 'bun:test';
-import { parse_as_bytes } from '../../src/internal/parse';
+import { parse_as_bytes, parse_idle_timeout } from '../../src/internal/parse';
+
+describe('parse_idle_timeout', () => {
+  test('parses integers within range', () => {
+    expect(parse_idle_timeout('10')).toBe(10);
+    expect(parse_idle_timeout('0')).toBe(0);
+    expect(parse_idle_timeout('255')).toBe(255);
+  });
+
+  test('rejects values above the Bun.serve cap', () => {
+    expect(parse_idle_timeout('256')).toBeNaN();
+    expect(parse_idle_timeout('300')).toBeNaN();
+  });
+
+  test('rejects negatives, fractions and garbage', () => {
+    expect(parse_idle_timeout('-1')).toBeNaN();
+    expect(parse_idle_timeout('1.5')).toBeNaN();
+    expect(parse_idle_timeout('abc')).toBeNaN();
+    expect(parse_idle_timeout('')).toBeNaN();
+  });
+});
 
 describe('parse_as_bytes', () => {
   test('parses kilobytes', () => {

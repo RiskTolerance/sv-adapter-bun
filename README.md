@@ -46,6 +46,7 @@ export default {
       serveAssets: true,
       envPrefix: 'MY_CUSTOM_',
       precompress: true,
+      idleTimeout: 30,
     }),
   },
 };
@@ -64,6 +65,10 @@ Serve static assets. Default: `true`
 ### precompress
 
 Enables precompressing using gzip and brotli for assets and prerendered pages. It defaults to `true`.
+
+### idleTimeout
+
+Default idle timeout for the server in seconds — see the [`IDLE_TIMEOUT`](#idle_timeout) environment variable, which overrides this at runtime. `0` disables the timeout; Bun caps the value at `255`.
 
 ### envPrefix
 
@@ -202,7 +207,7 @@ BODY_SIZE_LIMIT=10M bun build/index.js
 
 ### `IDLE_TIMEOUT`
 
-The maximum number of seconds a connection may sit idle before Bun closes it. Defaults to `10`, which means responses that take longer than 10 seconds to produce will be aborted. Increase it for long-running requests or streams (Bun caps this value at 255):
+The maximum number of seconds a connection may sit idle before Bun closes it. Defaults to the `idleTimeout` adapter option, or `10` — meaning responses that take longer than 10 seconds to produce will be aborted. Increase it for long-running requests or streams, or set `0` to disable the timeout entirely. Bun caps the value at `255`; anything outside `0`–`255` fails startup with an error:
 
 ```
 IDLE_TIMEOUT=120 bun build/index.js
