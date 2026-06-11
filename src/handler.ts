@@ -50,8 +50,8 @@ function serve(path: string, client: boolean = false) {
 function serve_prerendered(): RequestHandler {
   const handler = serve(`${import.meta.dir}/prerendered`, false)!;
 
-  return (req, next) => {
-    let { pathname, search } = new URL(req.url);
+  return (req, next, rawPathname) => {
+    let pathname = rawPathname ?? new URL(req.url).pathname;
 
     try {
       pathname = decodeURIComponent(pathname);
@@ -60,14 +60,15 @@ function serve_prerendered(): RequestHandler {
     }
 
     if (prerendered.has(pathname)) {
-      return handler(req, next);
+      return handler(req, next, rawPathname);
     }
 
     // remove or add trailing slash as appropriate
     let location =
       pathname.at(-1) === '/' ? pathname.slice(0, -1) : pathname + '/';
     if (prerendered.has(location)) {
-      if (search) location += search;
+      const qi = req.url.indexOf('?');
+      if (qi !== -1) location += req.url.slice(qi);
       return new Response(null, { status: 308, headers: { location } });
     } else {
       return next?.() || new Response(null, { status: 404 });
@@ -132,9 +133,12 @@ export const getHandler = () => {
   ].filter(Boolean) as RequestHandler[];
 
   const handler = (request: Request, server: Bun.Server<undefined>) => {
+    // parse once — every static handler down the chain reuses it
+    const pathname = new URL(request.url).pathname;
+
     function handle(i: number): Response | Promise<Response> {
       if (i < staticHandlers.length) {
-        return staticHandlers[i]!(request, () => handle(i + 1));
+        return staticHandlers[i]!(request, () => handle(i + 1), pathname);
       } else {
         return ssr(request, server);
       }

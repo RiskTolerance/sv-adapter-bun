@@ -50,6 +50,37 @@ describe('demo app', () => {
     expect(res.status).toBe(404);
   });
 
+  test('returns 304 for a matching etag', async () => {
+    const html = await (await fetch(`${plain.baseUrl}/`)).text();
+    const asset = html.match(/\/_app\/immutable\/[^"' )]+\.js/)?.[0];
+    const first = await fetch(`${plain.baseUrl}${asset}`);
+    const etag = first.headers.get('etag');
+    expect(etag).toBeTruthy();
+
+    const second = await fetch(`${plain.baseUrl}${asset}`, {
+      headers: { 'if-none-match': etag! },
+    });
+    expect(second.status).toBe(304);
+  });
+
+  test('serves range requests with 206 and clean cached headers', async () => {
+    const html = await (await fetch(`${plain.baseUrl}/`)).text();
+    const asset = html.match(/\/_app\/immutable\/[^"' )]+\.js/)?.[0];
+
+    const res = await fetch(`${plain.baseUrl}${asset}`, {
+      headers: { range: 'bytes=0-9' },
+    });
+    expect(res.status).toBe(206);
+    expect(res.headers.get('content-range')).toMatch(/^bytes 0-9\//);
+    expect((await res.arrayBuffer()).byteLength).toBe(10);
+
+    // a follow-up full request must not inherit range headers from the
+    // shared cached Headers object
+    const full = await fetch(`${plain.baseUrl}${asset}`);
+    expect(full.status).toBe(200);
+    expect(full.headers.get('content-range')).toBeNull();
+  });
+
   test('server-renders a component route at runtime', async () => {
     // /sverdle is not prerendered — a 200 here proves runtime Svelte SSR
     // works in the bundled server (regression for the historical Bun.build

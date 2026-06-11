@@ -1,5 +1,22 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **Range requests no longer serve byte slices of precompressed variants**:
+  a `Range` request from a client that also sent `Accept-Encoding: br/gzip`
+  received a slice of the `.br`/`.gz` file with `Content-Encoding` set — an
+  undecodable response. Range requests now always get the identity encoding.
+
+### Changed
+
+- Static handler chain does less per-request work: the URL is parsed once
+  per request and shared down the chain, and per-file headers (including
+  `setHeaders` results and `Vary`) are computed once at startup instead of
+  cloned and recomputed per hit. No measurable throughput change on the
+  demo app — see issue #14 — but strictly less allocation per request.
+
 ## 1.3.0 — 2026-06-11
 
 ### Added
