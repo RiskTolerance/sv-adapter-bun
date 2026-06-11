@@ -24,5 +24,5 @@ declare module 'SERVER' {
   export { Server } from '@sveltejs/kit';
 }
 
-declare const BUILD_OPTIONS: { serveAssets: boolean };
+declare const BUILD_OPTIONS: { serveAssets: boolean; idleTimeout?: number };
 declare const ENV_PREFIX: string;

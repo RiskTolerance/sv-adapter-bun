@@ -1,7 +1,8 @@
+/* global BUILD_OPTIONS */
 import { env } from 'ENV';
 import { getHandler } from 'HANDLER';
 import process from 'node:process';
-import { parse_as_bytes } from './internal/parse';
+import { parse_as_bytes, parse_idle_timeout } from './internal/parse';
 
 export const path = env('SOCKET_PATH', false);
 export const host = env('HOST', '0.0.0.0');
@@ -14,7 +15,16 @@ if (Number.isNaN(body_size_limit)) {
   );
 }
 
-const idle_timeout = parseInt(env('IDLE_TIMEOUT', '10'), 10);
+// precedence: IDLE_TIMEOUT env var > idleTimeout adapter option > Bun default
+const idle_timeout = parse_idle_timeout(
+  env('IDLE_TIMEOUT', String(BUILD_OPTIONS.idleTimeout ?? 10))
+);
+if (Number.isNaN(idle_timeout)) {
+  throw new Error(
+    `Invalid IDLE_TIMEOUT: '${env('IDLE_TIMEOUT', String(BUILD_OPTIONS.idleTimeout))}'. Please provide an integer between 0 (disabled) and 255 seconds.`
+  );
+}
+
 const { fetch: handlerFetch, websocket } = getHandler();
 
 const base_options = {

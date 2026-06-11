@@ -102,3 +102,17 @@ describe('forwarded header validation', () => {
     expect(res.status).toBe(200);
   });
 });
+
+describe('startup validation', () => {
+  test('refuses to start with an out-of-range IDLE_TIMEOUT', () => {
+    const result = Bun.spawnSync(['bun', 'build/index.js'], {
+      cwd: DEMO_DIR,
+      env: { ...process.env, IDLE_TIMEOUT: '300' },
+      stdin: 'ignore',
+      stdout: 'pipe',
+      stderr: 'pipe',
+    });
+    expect(result.exitCode).not.toBe(0);
+    expect(result.stderr.toString()).toContain('Invalid IDLE_TIMEOUT');
+  });
+});
