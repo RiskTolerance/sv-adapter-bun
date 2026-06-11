@@ -1,6 +1,7 @@
 import { env } from 'ENV';
 import { getHandler } from 'HANDLER';
 import process from 'node:process';
+import { parse_as_bytes } from './internal/parse';
 
 export const path = env('SOCKET_PATH', false);
 export const host = env('HOST', '0.0.0.0');
@@ -16,21 +17,31 @@ if (Number.isNaN(body_size_limit)) {
 const idle_timeout = parseInt(env('IDLE_TIMEOUT', '10'), 10);
 const { fetch: handlerFetch, websocket } = getHandler();
 
-const options = {
-  idleTimeout: idle_timeout,
+const base_options = {
   maxRequestBodySize: body_size_limit,
   fetch: handlerFetch,
-  ...(path ? { unix: path } : { hostname: host, port: port }),
-  ...(websocket ? { websocket } : {}),
+};
+const tcp_options = {
+  hostname: host,
+  port: port,
+  // Bun's types forbid idleTimeout on unix sockets (the runtime ignores it)
+  idleTimeout: idle_timeout,
 };
 
-const server = Bun.serve(options);
+// explicit branches because Bun.serve's option union rejects
+// optionally-undefined websocket and unix keys
+const server = websocket
+  ? path
+    ? Bun.serve({ ...base_options, websocket, unix: path })
+    : Bun.serve({ ...base_options, websocket, ...tcp_options })
+  : path
+    ? Bun.serve({ ...base_options, unix: path })
+    : Bun.serve({ ...base_options, ...tcp_options });
 
 console.log(`Listening on ${server.url} ${websocket ? 'with WebSocket' : ''}`);
 
 async function graceful_shutdown(reason: 'SIGINT' | 'SIGTERM' | 'IDLE') {
   console.info('Stopping server...');
-  // @ts-expect-error custom events cannot be typed
   process.emit('sveltekit:shutdown', reason);
   await server.stop(true);
   console.info('Stopped server');
@@ -43,21 +54,3 @@ process.on('SIGTERM', graceful_shutdown);
 process.on('SIGINT', graceful_shutdown);
 
 export { server };
-
-/**
- * Parses the given value into number of bytes.
- *
- * @param {string} value - Size in bytes. Can also be specified with a unit suffix kilobytes (K), megabytes (M), or gigabytes (G).
- * @returns {number}
- */
-function parse_as_bytes(value: string): number {
-  const units = value.at(-1)?.toUpperCase();
-  const multiplier =
-    {
-      B: 1,
-      K: 1024,
-      M: 1024 * 1024,
-      G: 1024 * 1024 * 1024,
-    }[units ?? 'B'] ?? 1;
-  return Number(multiplier !== 1 ? value.slice(0, -1) : value) * multiplier;
-}

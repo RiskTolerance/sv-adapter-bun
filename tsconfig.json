@@ -25,5 +25,14 @@
     "noUnusedLocals": false,
     "noUnusedParameters": false,
     "noPropertyAccessFromIndexSignature": false
-  }
+  },
+  // Examples are standalone SvelteKit apps with their own generated tsconfigs
+  "include": [
+    "index.ts",
+    "ambient.d.ts",
+    "internal.d.ts",
+    "src",
+    "scripts",
+    "tests"
+  ]
 }

@@ -1,0 +1,69 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+  schedule:
+    # Weekly run against fresh dependency resolutions — early warning for
+    # Bun/SvelteKit/rolldown changes breaking the adapter.
+    - cron: '0 6 * * 1'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: latest
+      - run: bun install --frozen-lockfile
+      - run: bun run format:check
+      - run: bunx tsc --noEmit
+
+  test:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        bun-version: [latest, canary]
+    continue-on-error: ${{ matrix.bun-version == 'canary' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ matrix.bun-version }}
+      - run: bun install --frozen-lockfile
+      - run: bun run build
+      - run: bun run test:unit
+      - run: bun run test:integration
+
+  # Same as test, but with lockfiles discarded so everything resolves to the
+  # newest @sveltejs/kit, svelte, vite and rolldown. A red Monday run means
+  # the ecosystem moved underneath us, not that the repo broke.
+  ecosystem:
+    if: github.event_name == 'schedule' || github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        bun-version: [latest, canary]
+    continue-on-error: ${{ matrix.bun-version == 'canary' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: ${{ matrix.bun-version }}
+      - run: rm -f bun.lock examples/demo/bun.lock examples/websocket/bun.lock
+      - run: bun install
+      - run: bun run build
+      - run: bun run test:unit
+      - run: bun run test:integration

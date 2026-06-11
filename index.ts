@@ -1,5 +1,6 @@
 import type { Adapter, Builder } from '@sveltejs/kit';
 import { readFileSync, writeFileSync } from 'node:fs';
+import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { rolldown } from 'rolldown';
 
@@ -90,11 +91,16 @@ export default function (options: AdapterOptions = {}): Adapter {
         input: entrypoints,
         external: [
           // dependencies could have deep exports, so we need a regex
-          ...Object.keys(pkg.dependencies || {}).map(
-            d => new RegExp(`^${d}(\\/.*)?$`)
-          ),
-          // Node.js built-in modules
+          ...Object.keys({
+            ...pkg.dependencies,
+            ...pkg.peerDependencies,
+            ...pkg.optionalDependencies,
+          }).map(d => new RegExp(`^${d}(\\/.*)?$`)),
+          // Node.js built-in modules, with and without the node: prefix
           /^node:/,
+          ...builtinModules.map(m => new RegExp(`^${m}(\\/.*)?$`)),
+          // Bun runtime modules (bun, bun:sqlite, bun:test, ...)
+          /^bun(:.*)?$/,
         ],
       });
 

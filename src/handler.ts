@@ -6,6 +6,7 @@ import type { Server as SvelteKitServer } from '@sveltejs/kit';
 import { existsSync } from 'node:fs';
 import type { RequestHandler } from 'sirv';
 import sirv from 'sirv';
+import { get_origin } from './internal/origin';
 
 const server = new Server(manifest) as SvelteKitServer & {
   websocket(): unknown;
@@ -74,8 +75,10 @@ function serve_prerendered(): RequestHandler {
   };
 }
 
-const ssr = async (request: Request, bunServer: Bun.Server) => {
-  const baseOrigin = origin || get_origin(request.headers);
+const ssr = async (request: Request, bunServer: Bun.Server<undefined>) => {
+  const baseOrigin =
+    origin ||
+    get_origin(request.headers, { protocol_header, host_header, port_header });
   const url = request.url.slice(request.url.split('/', 3).join('/').length);
   const newRequest = new Request(baseOrigin + url, request);
 
@@ -128,7 +131,7 @@ export const getHandler = () => {
     serveAssets && serve_prerendered(),
   ].filter(Boolean) as RequestHandler[];
 
-  const handler = (request: Request, server: Bun.Server) => {
+  const handler = (request: Request, server: Bun.Server<undefined>) => {
     function handle(i: number): Response | Promise<Response> {
       if (i < staticHandlers.length) {
         return staticHandlers[i]!(request, () => handle(i + 1));
@@ -145,11 +148,3 @@ export const getHandler = () => {
     websocket,
   };
 };
-
-function get_origin(headers: Headers) {
-  const protocol = (protocol_header && headers.get(protocol_header)) || 'https';
-  const host = (host_header && headers.get(host_header)) || headers.get('host');
-  const port = port_header && headers.get(port_header);
-
-  return port ? `${protocol}://${host}:${port}` : `${protocol}://${host}`;
-}
