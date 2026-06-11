@@ -1,6 +1,11 @@
 # Changelog
 
-## Unreleased
+## 1.2.0 — 2026-06-11
+
+> [!IMPORTANT]
+> Building now requires Bun >= 1.3.6 (the deployed server already required a
+> recent Bun). Plain `vite build` under Node still works as long as the `bun`
+> executable is on `PATH`.
 
 ### Added
 
