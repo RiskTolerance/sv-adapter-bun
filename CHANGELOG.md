@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **`bundler` adapter option**: choose between `'bun'` (default, `Bun.build`)
+  and `'rolldown'` (now stable 1.x, declared as an optional peer dependency)
+  for the server bundling step. Rolldown runs in-process under Node, avoiding
+  the Bun subprocess that plain `vite build` otherwise needs. Benchmarks on
+  the demo app (`bun run scripts/bench-bundlers.ts`): Bun.build ~13 ms
+  in-process / ~44 ms via subprocess, rolldown ~27 ms in-process with ~9%
+  smaller output — both negligible next to the vite build itself.
+
 ## 1.2.0 — 2026-06-11
 
 > [!IMPORTANT]

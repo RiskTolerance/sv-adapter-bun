@@ -73,6 +73,10 @@ Enables precompressing using gzip and brotli for assets and prerendered pages. I
 
 Default idle timeout for the server in seconds — see the [`IDLE_TIMEOUT`](#idle_timeout) environment variable, which overrides this at runtime. `0` disables the timeout; Bun caps the value at `255`.
 
+### bundler
+
+Which bundler produces the server bundle. Default: `'bun'` (uses `Bun.build`, requires Bun >= 1.3.6 at build time). Set `'rolldown'` to bundle with [rolldown](https://rolldown.rs) instead — it runs in-process under Node or Bun, so it avoids the Bun subprocess when building with plain `vite build`; add rolldown to your devDependencies to use it. Benchmarks on the demo app show both well under 50 ms, so pick by environment rather than speed.
+
 ### envPrefix
 
 If you need to change the name of the environment variables used to configure the deployment (for example, to deconflict with environment variables you don't control), you can specify a prefix:
