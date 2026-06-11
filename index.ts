@@ -1,8 +1,9 @@
 import type { Adapter, Builder } from '@sveltejs/kit';
-import { readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { builtinModules } from 'node:module';
 import { fileURLToPath } from 'node:url';
 import { rolldown } from 'rolldown';
+import { patch_server_websocket_handler } from './src/internal/websocket_patch';
 
 interface AdapterOptions {
   out?: string;
@@ -111,7 +112,12 @@ export default function (options: AdapterOptions = {}): Adapter {
         chunkFileNames: 'chunks/[name]-[hash].js',
       });
 
-      await patchServerWebsocketHandler(`${out}/server/index.js`);
+      builder.log.minor('Patching server for WebSocket support');
+      const hooks_file = builder.config.kit.files.hooks.server;
+      const has_server_hooks = builder.config.kit.moduleExtensions.some(ext =>
+        existsSync(`${hooks_file}${ext}`)
+      );
+      patchServerWebsocketHandler(`${out}/server/index.js`, has_server_hooks);
 
       builder.copy(files, out, {
         replace: {
@@ -143,22 +149,13 @@ export default function (options: AdapterOptions = {}): Adapter {
 }
 
 /**
- * Patch sveltekit server to return the websocket handler
+ * Patch sveltekit server to return the websocket handler. Throws when kit's
+ * internals no longer match the patch patterns.
  */
-async function patchServerWebsocketHandler(path: string) {
+function patchServerWebsocketHandler(path: string, has_server_hooks: boolean) {
   const content = readFileSync(path, 'utf-8');
-
-  const result = content
-    .replace(
-      /(const (.*?) = await get_hooks\(\);)\s+(this\.#options\.hooks\s+=\s+{)/,
-      '$1$3websocket: $2.websocket || null,'
-    )
-    .replace(/(async function get_hooks\(\) {)/, '$1let websocket;')
-    .replace(/(\({handle,)((.|\s)*?return {)/, '$1websocket,$2websocket,')
-    .replace(
-      /(async init\({ env, read }\) {)/,
-      'websocket() {return this.#options.hooks.websocket}\n$1'
-    );
-
-  writeFileSync(path, result);
+  writeFileSync(
+    path,
+    patch_server_websocket_handler(content, has_server_hooks)
+  );
 }
