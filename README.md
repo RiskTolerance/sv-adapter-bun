@@ -1,14 +1,19 @@
-# svelte-adapter-bun
+# @risktolerance/svelte-adapter-bun
+
+[![CI](https://github.com/RiskTolerance/sv-adapter-bun/actions/workflows/ci.yml/badge.svg)](https://github.com/RiskTolerance/sv-adapter-bun/actions/workflows/ci.yml)
 
 [Adapter](https://kit.svelte.dev/docs/adapters) for SvelteKit apps that generates a standalone [Bun](https://github.com/oven-sh/bun) server.
 
+> [!NOTE]
+> This is a maintained fork of [gornostay25/svelte-adapter-bun](https://github.com/gornostay25/svelte-adapter-bun), which has been inactive since October 2025. This fork tracks upstream issues, ships security and compatibility fixes, and is tested in CI against current Bun and SvelteKit releases. Issues and PRs are welcome at [RiskTolerance/sv-adapter-bun](https://github.com/RiskTolerance/sv-adapter-bun).
+
 ## :zap: Usage
 
-Install with `bun add -d svelte-adapter-bun`, then add the adapter to your `svelte.config.js`:
+Install with `bun add -d @risktolerance/svelte-adapter-bun`, then add the adapter to your `svelte.config.js`:
 
 ```js
 // svelte.config.js
-import adapter from 'svelte-adapter-bun';
+import adapter from '@risktolerance/svelte-adapter-bun';
 
 export default {
   kit: {
@@ -33,7 +38,7 @@ The adapter can be configured with various options:
 
 ```js
 // svelte.config.js
-import adapter from 'svelte-adapter-bun';
+import adapter from '@risktolerance/svelte-adapter-bun';
 export default {
   kit: {
     adapter: adapter({
@@ -157,6 +162,11 @@ PROTOCOL_HEADER=x-forwarded-proto HOST_HEADER=x-forwarded-host bun build/index.j
 
 > [`x-forwarded-proto`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Proto) and [`x-forwarded-host`](https://developer.mozilla.org/en-US/docs/Web/HTTP/Headers/X-Forwarded-Host) are de facto standard headers that forward the original protocol and host if you're using a reverse proxy (think load balancers and CDNs). You should only set these variables if your server is behind a trusted reverse proxy; otherwise, it'd be possible for clients to spoof these headers.
 
+You can also specify a `PORT_HEADER` if your proxy forwards a non-standard port.
+
+> [!IMPORTANT]
+> Since v1.1.0, requests carrying malformed values in the headers named by `PROTOCOL_HEADER`, `HOST_HEADER` or `PORT_HEADER` (for example a protocol containing `:`, duplicate comma-joined values, or a non-numeric port) are rejected instead of being used to silently construct an attacker-controlled origin. This ports the same hardening that SvelteKit applied to `adapter-node`.
+
 ### `ADDRESS_HEADER` and `XFF_DEPTH`
 
 The [RequestEvent](https://kit.svelte.dev/docs/types#additional-types-requestevent) object passed to hooks and endpoints includes an `event.clientAddress` property representing the client's IP address. [Bun.js haven't got functionality](https://github.com/Jarred-Sumner/bun/issues/518) to get client's IP address, so SvelteKit will receive `127.0.0.1` or if your server is behind one or more proxies (such as a load balancer), you can get an IP address from headers, so we need to specify an `ADDRESS_HEADER` to read the address from:
@@ -182,6 +192,24 @@ Instead, we read from the _right_, accounting for the number of trusted proxies.
 
 > If you need to read the left-most address instead (and don't care about spoofing) — for example, to offer a geolocation service, where it's more important for the IP address to be _real_ than _trusted_, you can do so by inspecting the `x-forwarded-for` header within your app.
 
+### `BODY_SIZE_LIMIT`
+
+The maximum request body size in bytes, with optional `K`, `M` or `G` unit suffixes (kilobytes, megabytes, gigabytes). Defaults to `512K`. Set it to `Infinity` to disable the limit:
+
+```
+BODY_SIZE_LIMIT=10M bun build/index.js
+```
+
+### `IDLE_TIMEOUT`
+
+The maximum number of seconds a connection may sit idle before Bun closes it. Defaults to `10`, which means responses that take longer than 10 seconds to produce will be aborted. Increase it for long-running requests or streams (Bun caps this value at 255):
+
+```
+IDLE_TIMEOUT=120 bun build/index.js
+```
+
 ## License
 
 [MIT](LICENSE) © [Volodymyr Palamar](https://github.com/gornostay25)
+
+Fork maintained by [RiskTolerance](https://github.com/RiskTolerance).

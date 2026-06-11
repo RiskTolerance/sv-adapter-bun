@@ -1,7 +1,7 @@
 {
-  "name": "svelte-adapter-bun",
+  "name": "@risktolerance/svelte-adapter-bun",
   "version": "1.0.1",
-  "description": "Adapter for SvelteKit apps that generates a standalone Bun.js server.",
+  "description": "Adapter for SvelteKit apps that generates a standalone Bun.js server. Maintained fork of svelte-adapter-bun.",
   "keywords": [
     "adapter",
     "deploy",
@@ -14,19 +14,32 @@
     "url": "https://gornostay25.dev",
     "email": "me@gornostay25.dev"
   },
+  "contributors": [
+    {
+      "name": "Isaac Druin",
+      "url": "https://github.com/RiskTolerance"
+    }
+  ],
   "license": "MIT",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/gornostay25/svelte-adapter-bun.git"
+    "url": "git+https://github.com/RiskTolerance/sv-adapter-bun.git"
   },
   "bugs": {
-    "url": "https://github.com/gornostay25/svelte-adapter-bun/issues"
+    "url": "https://github.com/RiskTolerance/sv-adapter-bun/issues"
   },
-  "homepage": "https://github.com/gornostay25/svelte-adapter-bun#readme",
+  "homepage": "https://github.com/RiskTolerance/sv-adapter-bun#readme",
+  "publishConfig": {
+    "access": "public"
+  },
   "scripts": {
     "prepare": "husky || echo ''",
     "build": "bun run scripts/build.ts",
-    "format": "prettier --write ."
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
+    "test": "bun run test:unit && bun run test:integration",
+    "test:unit": "bun test tests/unit",
+    "test:integration": "bun test tests/integration --timeout 180000"
   },
   "type": "module",
   "exports": {
