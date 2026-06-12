@@ -26,9 +26,9 @@ interface AdapterOptions {
    */
   bundler?: Bundler;
   /**
-   * Patch the built server to expose the websocket hook (default true). Set
-   * false for apps without WebSockets to skip rewriting kit internals
-   * entirely — the server then runs plain HTTP.
+   * Bundle the app's hooks.server module so the server can use its
+   * websocket export (default true). Set false for apps without WebSockets
+   * — the server then runs plain HTTP.
    */
   websockets?: boolean;
 }
