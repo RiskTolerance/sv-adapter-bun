@@ -110,6 +110,42 @@ describe('demo app', () => {
     expect(full.headers.get('content-range')).toBeNull();
   });
 
+  test('handles RFC 7233 range edge cases', async () => {
+    const html = await (await fetch(`${plain.baseUrl}/`)).text();
+    const asset = html.match(/\/_app\/immutable\/[^"' )]+\.js/)?.[0];
+    const url = `${plain.baseUrl}${asset}`;
+    const size = (await (await fetch(url)).arrayBuffer()).byteLength;
+
+    // suffix range = LAST five bytes (historically returned the first six)
+    const suffix = await fetch(url, { headers: { range: 'bytes=-5' } });
+    expect(suffix.status).toBe(206);
+    expect(suffix.headers.get('content-range')).toBe(
+      `bytes ${size - 5}-${size - 1}/${size}`
+    );
+    expect((await suffix.arrayBuffer()).byteLength).toBe(5);
+
+    // reversed bounds: invalid spec, header ignored, full 200
+    const reversed = await fetch(url, { headers: { range: 'bytes=8-3' } });
+    expect(reversed.status).toBe(200);
+    expect((await reversed.arrayBuffer()).byteLength).toBe(size);
+
+    // non-bytes unit: ignored, full 200 (historically a mangled 206)
+    const weird = await fetch(url, { headers: { range: 'items=0-5' } });
+    expect(weird.status).toBe(200);
+
+    // single byte (historically returned the whole file)
+    const one = await fetch(url, { headers: { range: 'bytes=0-0' } });
+    expect(one.status).toBe(206);
+    expect((await one.arrayBuffer()).byteLength).toBe(1);
+
+    // start past EOF: 416 with the star form
+    const beyond = await fetch(url, {
+      headers: { range: `bytes=${size}-` },
+    });
+    expect(beyond.status).toBe(416);
+    expect(beyond.headers.get('content-range')).toBe(`bytes */${size}`);
+  });
+
   // upstream gornostay25/svelte-adapter-bun#44 claimed streamed load
   // promises buffer until fully resolved — this proves the shell flushes
   // before the slow promise settles
