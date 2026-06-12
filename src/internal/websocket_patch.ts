@@ -40,35 +40,52 @@ const steps: PatchStep[] = [
 ];
 
 /**
- * Patches SvelteKit's built server to expose the websocket hook. Throws when
- * a required pattern no longer matches so a kit-internals change fails the
- * build loudly instead of silently producing a server without WebSocket
- * support.
+ * Patches SvelteKit's built server to expose the websocket hook. Operates on
+ * the whole emitted file set (index.js plus chunks) because the bundler
+ * decides per-app whether get_hooks() lands in the entry or a shared chunk —
+ * on kit 2.57+ it commonly splits out. Each pattern is applied to the first
+ * file it matches; a pattern matching no file throws so a kit-internals
+ * change fails the build loudly instead of silently producing a server
+ * without WebSocket support.
  *
  * Apps without a hooks.server file produce a get_hooks() with no module
  * destructuring — `has_server_hooks` tells the patcher whether that step is
  * required or legitimately absent (the websocket() accessor then resolves to
  * null and the runtime starts a plain HTTP server).
+ *
+ * Returns only the entries that changed, keyed as given.
  */
 export function patch_server_websocket_handler(
-  content: string,
+  files: Map<string, string>,
   has_server_hooks: boolean
-): string {
-  let result = content;
+): Map<string, string> {
+  const contents = new Map(files);
+  const changed = new Set<string>();
 
   for (const step of steps) {
-    if (!step.pattern.test(result)) {
+    let matched = false;
+
+    for (const [path, content] of contents) {
+      if (step.pattern.test(content)) {
+        contents.set(path, content.replace(step.pattern, step.replacement));
+        changed.add(path);
+        matched = true;
+        break;
+      }
+    }
+
+    if (!matched) {
       if (step.requires_server_hooks && !has_server_hooks) continue;
 
       throw new Error(
         `Failed to patch the built SvelteKit server for WebSocket support: ` +
-          `could not ${step.description}. SvelteKit's internals have likely ` +
+          `could not ${step.description} in any server output file ` +
+          `(searched ${contents.size}). SvelteKit's internals have likely ` +
           `changed shape. Please report this at ` +
           `https://github.com/RiskTolerance/sv-adapter-bun/issues`
       );
     }
-    result = result.replace(step.pattern, step.replacement);
   }
 
-  return result;
+  return new Map([...contents].filter(([path]) => changed.has(path)));
 }

@@ -77,6 +77,10 @@ Default idle timeout for the server in seconds — see the [`IDLE_TIMEOUT`](#idl
 
 Which bundler produces the server bundle. Default: `'bun'` (uses `Bun.build`, requires Bun >= 1.3.6 at build time). Set `'rolldown'` to bundle with [rolldown](https://rolldown.rs) instead — it runs in-process under Node or Bun, so it avoids the Bun subprocess when building with plain `vite build`; add rolldown to your devDependencies to use it. Benchmarks on the demo app show both well under 50 ms, so pick by environment rather than speed.
 
+### websockets
+
+Whether to patch the built server to expose the [`websocket` hook](#spider_web-websocket-server). Default: `true`. Set `false` for apps that don't use WebSockets — the adapter then skips rewriting SvelteKit's internals entirely and the server runs plain HTTP, immune to kit-internals drift.
+
 ### envPrefix
 
 If you need to change the name of the environment variables used to configure the deployment (for example, to deconflict with environment variables you don't control), you can specify a prefix:

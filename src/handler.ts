@@ -8,8 +8,10 @@ import type { RequestHandler } from 'sirv';
 import sirv from 'sirv';
 import { get_origin } from './internal/origin';
 
+// websocket() only exists when the adapter's build-time patch ran (it is
+// skipped with the websockets: false adapter option)
 const server = new Server(manifest) as SvelteKitServer & {
-  websocket(): unknown;
+  websocket?(): unknown;
 };
 
 const { serveAssets } = BUILD_OPTIONS;
@@ -125,7 +127,7 @@ const ssr = async (request: Request, bunServer: Bun.Server<undefined>) => {
 };
 
 export const getHandler = () => {
-  const websocket = server.websocket();
+  const websocket = server.websocket?.();
 
   const staticHandlers = [
     serveAssets && serve(`${import.meta.dir}/client${base}`, true),
