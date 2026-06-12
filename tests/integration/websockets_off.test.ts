@@ -29,10 +29,11 @@ describe('demo app with websockets: false', () => {
     expect(res.status).toBe(200);
   });
 
-  test('built server was not rewritten', async () => {
-    const content = await Bun.file(`${DEMO_DIR}/build/server/index.js`).text();
-    expect(content).not.toContain(
-      'websocket() {return this.#options.hooks.websocket}'
-    );
+  test('runtime imports the stub instead of the hooks module', async () => {
+    expect(
+      await Bun.file(`${DEMO_DIR}/build/server/no-websocket-hooks.js`).exists()
+    ).toBe(true);
+    const handler = await Bun.file(`${DEMO_DIR}/build/handler.js`).text();
+    expect(handler).toContain('./server/no-websocket-hooks.js');
   });
 });

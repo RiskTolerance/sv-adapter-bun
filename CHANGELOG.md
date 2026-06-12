@@ -1,5 +1,19 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **WebSocket support no longer rewrites SvelteKit's built server**
+  ([#10](https://github.com/RiskTolerance/sv-adapter-bun/issues/10)): the
+  app's `hooks.server` module is now bundled as its own entrypoint and the
+  runtime reads its `websocket` export directly — code splitting dedupes the
+  module into a shared chunk, so kit's own import sees the same instance.
+  This deletes the four regex patches that rewrote kit internals (and broke
+  on kit 2.57's chunk layout, and on every bundler formatting change).
+  The only remaining coupling is the stable `entries/hooks.server.js` output
+  path, guarded by a loud build error. No user-facing API change.
+
 ## 1.5.1 — 2026-06-12
 
 ### Fixed

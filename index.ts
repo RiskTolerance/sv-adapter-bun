@@ -1,6 +1,6 @@
 import type { Adapter, Builder } from '@sveltejs/kit';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
   bundle_server,
@@ -8,7 +8,6 @@ import {
   type Bundler,
 } from './src/internal/bundle';
 import { zstd_compress_dir } from './src/internal/compress';
-import { patch_server_websocket_handler } from './src/internal/websocket_patch';
 
 interface AdapterOptions {
   out?: string;
@@ -115,6 +114,29 @@ export default function (options: AdapterOptions = {}): Adapter {
         entrypoints.push(`${tmp}/instrumentation.server.js`);
       }
 
+      // WebSocket support: the app's hooks.server module is bundled as its
+      // own entrypoint so the runtime can read its `websocket` export
+      // directly. Code splitting dedupes it into a shared chunk, so kit's
+      // own dynamic import of the hooks module sees the same instance.
+      const hooks_file = builder.config.kit.files.hooks.server;
+      const has_server_hooks = builder.config.kit.moduleExtensions.some(ext =>
+        existsSync(`${hooks_file}${ext}`)
+      );
+      const bundle_websocket_hooks = websockets && has_server_hooks;
+
+      if (bundle_websocket_hooks) {
+        const hooks_entry = `${tmp}/entries/hooks.server.js`;
+        if (!existsSync(hooks_entry)) {
+          throw new Error(
+            `Found a server hooks file but SvelteKit's build output has no ` +
+              `entries/hooks.server.js — kit's output layout has likely ` +
+              `changed. Please report this at ` +
+              `https://github.com/RiskTolerance/sv-adapter-bun/issues`
+          );
+        }
+        entrypoints.push(hooks_entry);
+      }
+
       const bundle_config: BundleConfig = {
         bundler,
         entrypoints,
@@ -151,13 +173,28 @@ export default function (options: AdapterOptions = {}): Adapter {
         }
       }
 
-      if (websockets) {
-        builder.log.minor('Patching server for WebSocket support');
-        const hooks_file = builder.config.kit.files.hooks.server;
-        const has_server_hooks = builder.config.kit.moduleExtensions.some(ext =>
-          existsSync(`${hooks_file}${ext}`)
+      let websocket_hooks_path: string;
+      if (bundle_websocket_hooks) {
+        // Bun.build preserves the entry's directory, rolldown flattens to
+        // the basename — locate whichever the bundler emitted
+        const emitted = ['entries/hooks.server.js', 'hooks.server.js'].find(
+          candidate => existsSync(`${out}/server/${candidate}`)
         );
-        patchServerWebsocketHandler(`${out}/server`, has_server_hooks);
+        if (!emitted) {
+          throw new Error(
+            `The bundler did not emit the hooks.server entrypoint where ` +
+              `expected. Please report this at ` +
+              `https://github.com/RiskTolerance/sv-adapter-bun/issues`
+          );
+        }
+        websocket_hooks_path = `./server/${emitted}`;
+      } else {
+        // no hooks file (or websockets disabled) — plain HTTP server
+        writeFileSync(
+          `${out}/server/no-websocket-hooks.js`,
+          'export const websocket = undefined;\n'
+        );
+        websocket_hooks_path = './server/no-websocket-hooks.js';
       }
 
       builder.copy(files, out, {
@@ -166,6 +203,7 @@ export default function (options: AdapterOptions = {}): Adapter {
           HANDLER: './handler.js',
           MANIFEST: './server/manifest.js',
           SERVER: './server/index.js',
+          WEBSOCKET_HOOKS: websocket_hooks_path,
           ENV_PREFIX: JSON.stringify(envPrefix),
           BUILD_OPTIONS: JSON.stringify({ serveAssets, idleTimeout }),
         },
@@ -187,36 +225,4 @@ export default function (options: AdapterOptions = {}): Adapter {
       instrumentation: () => true,
     },
   };
-}
-
-/**
- * Patch sveltekit server to return the websocket handler. The bundler
- * decides per-app whether get_hooks() ends up in index.js or a shared chunk,
- * so the whole emitted file set is searched. Throws when kit's internals no
- * longer match the patch patterns.
- */
-function patchServerWebsocketHandler(
-  server_dir: string,
-  has_server_hooks: boolean
-) {
-  const files = new Map<string, string>();
-  files.set(
-    `${server_dir}/index.js`,
-    readFileSync(`${server_dir}/index.js`, 'utf-8')
-  );
-
-  const chunks_dir = `${server_dir}/chunks`;
-  if (existsSync(chunks_dir)) {
-    for (const name of readdirSync(chunks_dir)) {
-      if (name.endsWith('.js')) {
-        const path = `${chunks_dir}/${name}`;
-        files.set(path, readFileSync(path, 'utf-8'));
-      }
-    }
-  }
-
-  const patched = patch_server_websocket_handler(files, has_server_hooks);
-  for (const [path, content] of patched) {
-    writeFileSync(path, content);
-  }
 }
