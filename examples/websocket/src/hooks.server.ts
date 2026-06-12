@@ -21,13 +21,23 @@ export const handle: Handle = async ({ event, resolve }) => {
 export const websocket: Bun.WebSocketHandler<undefined> = {
   async open(ws) {
     console.log('WebSocket opened');
+    // Bun pub/sub: every socket joins the room; publish from other sockets
+    // (ws.publish) or from any request handler (event.platform.server.publish)
+    ws.subscribe('room');
     ws.send('Slava Ukraїni');
   },
   message(ws, message) {
     console.log('WebSocket message received');
+    const text = message.toString();
+    if (text.startsWith('broadcast:')) {
+      // delivered to every subscriber except the sender
+      ws.publish('room', text.slice('broadcast:'.length));
+      return;
+    }
     ws.send(message);
   },
   close(ws) {
     console.log('WebSocket closed');
+    ws.unsubscribe('room');
   },
 };

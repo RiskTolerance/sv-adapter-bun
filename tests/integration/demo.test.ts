@@ -110,6 +110,38 @@ describe('demo app', () => {
     expect(full.headers.get('content-range')).toBeNull();
   });
 
+  // upstream gornostay25/svelte-adapter-bun#44 claimed streamed load
+  // promises buffer until fully resolved — this proves the shell flushes
+  // before the slow promise settles
+  test('streams load promises instead of buffering', async () => {
+    const start = performance.now();
+    const res = await fetch(`${plain.baseUrl}/streaming`);
+    expect(res.status).toBe(200);
+
+    const reader = res.body!.getReader();
+    const decoder = new TextDecoder();
+    let firstChunkAt = 0;
+    let payloadAt = 0;
+    let html = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      if (!firstChunkAt) firstChunkAt = performance.now() - start;
+      html += decoder.decode(value, { stream: true });
+      if (!payloadAt && html.includes('LATE_PAYLOAD')) {
+        payloadAt = performance.now() - start;
+      }
+    }
+
+    expect(html).toContain('shell-ready');
+    expect(html).toContain('LATE_PAYLOAD');
+    // the shell must arrive well before the 400ms promise resolves; the
+    // payload cannot arrive before it
+    expect(firstChunkAt).toBeLessThan(300);
+    expect(payloadAt).toBeGreaterThanOrEqual(380);
+  });
+
   test('server-renders a component route at runtime', async () => {
     // /sverdle is not prerendered — a 200 here proves runtime Svelte SSR
     // works in the bundled server (regression for the historical Bun.build

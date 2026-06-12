@@ -51,4 +51,72 @@ describe('websocket app', () => {
     expect(messages[0]).toBe('Slava Ukraїni');
     expect(messages[1]).toBe('echo-test');
   });
+
+  // upstream gornostay25/svelte-adapter-bun#66 claimed pub/sub was impossible
+  // through the adapter — these prove both publish paths work
+  test('ws.publish broadcasts to other subscribers', async () => {
+    const url = `${server.baseUrl.replace('http', 'ws')}/ws`;
+    const [a, b] = [new WebSocket(url), new WebSocket(url)];
+    const received: string[] = [];
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`timed out; b received: ${received}`)),
+        10_000
+      );
+      let greeted = 0;
+
+      const greet = () => {
+        // both sockets greeted means both are open and subscribed
+        if (++greeted === 2) a.send('broadcast:from-a');
+      };
+      a.onmessage = e => {
+        if (String(e.data) === 'Slava Ukraїni') greet();
+      };
+      b.onmessage = e => {
+        const text = String(e.data);
+        if (text === 'Slava Ukraїni') return greet();
+        received.push(text);
+        clearTimeout(timer);
+        resolve();
+      };
+      a.onerror = b.onerror = () => reject(new Error('websocket errored'));
+    });
+    a.close();
+    b.close();
+
+    expect(received).toEqual(['from-a']);
+  });
+
+  test('server.publish from a request handler reaches subscribers', async () => {
+    const ws = new WebSocket(`${server.baseUrl.replace('http', 'ws')}/ws`);
+    const received: string[] = [];
+
+    await new Promise<void>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error(`timed out; received: ${received}`)),
+        10_000
+      );
+      ws.onmessage = async e => {
+        const text = String(e.data);
+        if (text === 'Slava Ukraїni') {
+          // socket is open and subscribed — publish via the HTTP endpoint,
+          // which uses event.platform.server.publish
+          const res = await fetch(`${server.baseUrl}/broadcast`, {
+            method: 'POST',
+            body: 'from-http',
+          });
+          expect(res.status).toBe(200);
+          return;
+        }
+        received.push(text);
+        clearTimeout(timer);
+        resolve();
+      };
+      ws.onerror = () => reject(new Error('websocket errored'));
+    });
+    ws.close();
+
+    expect(received).toEqual(['from-http']);
+  });
 });

@@ -138,6 +138,16 @@ export const websocket: Bun.WebSocketHandler<undefined> = {
 };
 ```
 
+[Bun's pub/sub](https://bun.sh/docs/api/websockets#pub-sub) works through the adapter: subscribe sockets in the `websocket` handlers (`ws.subscribe('room')`, broadcast with `ws.publish`), and publish from any server route or hook through the Bun server instance on `event.platform`:
+
+```ts
+// src/routes/broadcast/+server.ts
+export const POST = async ({ request, platform }) => {
+  platform.server.publish('room', await request.text());
+  return new Response('ok');
+};
+```
+
 For detailed documentation, examples, and advanced usage patterns, visit the [WebSocket example README](examples/websocket/README.md).
 
 ## :desktop_computer: Environment variables
