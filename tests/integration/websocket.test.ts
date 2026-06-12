@@ -52,6 +52,32 @@ describe('websocket app', () => {
     expect(messages[1]).toBe('echo-test');
   });
 
+  test('hooks module instance is shared between kit and the websocket handlers', async () => {
+    // the handle hook (imported by kit's server) increments module state on
+    // upgrade; the websocket message handler (imported by the adapter via
+    // the hooks entrypoint) reads it — a count of zero would mean the
+    // bundler emitted two copies of the hooks module
+    const ws = new WebSocket(`${server.baseUrl.replace('http', 'ws')}/ws`);
+    const count = await new Promise<number>((resolve, reject) => {
+      const timer = setTimeout(
+        () => reject(new Error('timed out waiting for upgrade-count')),
+        10_000
+      );
+      ws.onmessage = e => {
+        const text = String(e.data);
+        if (text === 'Slava Ukraїni') return ws.send('upgrade-count');
+        if (text.startsWith('upgrade-count:')) {
+          clearTimeout(timer);
+          resolve(Number(text.slice('upgrade-count:'.length)));
+        }
+      };
+      ws.onerror = () => reject(new Error('websocket errored'));
+    });
+    ws.close();
+
+    expect(count).toBeGreaterThanOrEqual(1);
+  });
+
   // upstream gornostay25/svelte-adapter-bun#66 claimed pub/sub was impossible
   // through the adapter — these prove both publish paths work
   test('ws.publish broadcasts to other subscribers', async () => {

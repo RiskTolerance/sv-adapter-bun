@@ -20,7 +20,7 @@ await build({
   outdir: 'dist/files',
   target: 'bun',
   minify: false,
-  external: ['ENV', 'MANIFEST', 'SERVER', 'HANDLER'],
+  external: ['ENV', 'MANIFEST', 'SERVER', 'HANDLER', 'WEBSOCKET_HOOKS'],
   format: 'esm',
 });
 console.timeEnd('Build: server');

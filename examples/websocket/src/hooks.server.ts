@@ -1,5 +1,10 @@
 import type { Handle } from '@sveltejs/kit';
 
+// module-level state shared between the handle hook (imported by kit) and
+// the websocket handlers (imported by the adapter) — proves both see the
+// same module instance
+let upgrade_count = 0;
+
 export const handle: Handle = async ({ event, resolve }) => {
   const { request } = event;
   const url = new URL(request.url);
@@ -10,6 +15,7 @@ export const handle: Handle = async ({ event, resolve }) => {
     url.pathname.startsWith('/ws')
   ) {
     console.log('upgrading');
+    upgrade_count++;
     // We must use the platform.request here
     await event.platform!.server.upgrade(event.platform!.request);
     return new Response(null, { status: 101 });
@@ -32,6 +38,10 @@ export const websocket: Bun.WebSocketHandler<undefined> = {
     if (text.startsWith('broadcast:')) {
       // delivered to every subscriber except the sender
       ws.publish('room', text.slice('broadcast:'.length));
+      return;
+    }
+    if (text === 'upgrade-count') {
+      ws.send(`upgrade-count:${upgrade_count}`);
       return;
     }
     ws.send(message);

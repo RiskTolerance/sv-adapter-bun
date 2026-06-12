@@ -79,7 +79,7 @@ Which bundler produces the server bundle. Default: `'bun'` (uses `Bun.build`, re
 
 ### websockets
 
-Whether to patch the built server to expose the [`websocket` hook](#spider_web-websocket-server). Default: `true`. Set `false` for apps that don't use WebSockets — the adapter then skips rewriting SvelteKit's internals entirely and the server runs plain HTTP, immune to kit-internals drift.
+Whether to bundle the app's `hooks.server` module so the server can use its [`websocket` export](#spider_web-websocket-server). Default: `true`. Set `false` for apps that don't use WebSockets — the server then runs plain HTTP.
 
 ### envPrefix
 
