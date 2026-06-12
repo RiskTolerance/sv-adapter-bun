@@ -63,6 +63,35 @@ describe('demo app', () => {
     expect(second.status).toBe(304);
   });
 
+  test('serves zstd-precompressed assets to clients that accept zstd', async () => {
+    // pick an asset large enough that the build emitted a .zst variant
+    // (tiny files are skipped because compression would inflate them)
+    const { readdirSync } = await import('node:fs');
+    const chunks_dir = `${DEMO_DIR}/build/client/_app/immutable/chunks`;
+    const zst = readdirSync(chunks_dir).find(f => f.endsWith('.js.zst'));
+    expect(zst).toBeTruthy();
+    const asset = `/_app/immutable/chunks/${zst!.slice(0, -4)}`;
+
+    const identity = await (
+      await fetch(`${plain.baseUrl}${asset}`, {
+        headers: { 'accept-encoding': 'identity' },
+      })
+    ).arrayBuffer();
+
+    const res = await fetch(`${plain.baseUrl}${asset}`, {
+      headers: { 'accept-encoding': 'zstd' },
+      decompress: false,
+    });
+    expect(res.status).toBe(200);
+    expect(res.headers.get('content-encoding')).toBe('zstd');
+    expect(res.headers.get('vary')).toBe('Accept-Encoding');
+
+    const decoded = Bun.zstdDecompressSync(
+      new Uint8Array(await res.arrayBuffer())
+    );
+    expect(Buffer.from(decoded).equals(Buffer.from(identity))).toBe(true);
+  });
+
   test('serves range requests with 206 and clean cached headers', async () => {
     const html = await (await fetch(`${plain.baseUrl}/`)).text();
     const asset = html.match(/\/_app\/immutable\/[^"' )]+\.js/)?.[0];
