@@ -67,7 +67,7 @@ Serve static assets. Default: `true`
 
 ### precompress
 
-Enables precompressing using gzip and brotli for assets and prerendered pages. It defaults to `true`.
+Enables precompressing using gzip, brotli and zstd for assets and prerendered pages. It defaults to `true`. The server negotiates per-request via `Accept-Encoding` (brotli preferred, then zstd, then gzip); variants that would be larger than the original are not emitted. zstd requires Bun or Node >= 22.15 at build time — older Node skips the zstd pass with a warning.
 
 ### idleTimeout
 

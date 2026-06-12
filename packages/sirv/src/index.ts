@@ -26,6 +26,7 @@ export interface Options {
   dotfiles?: boolean;
   brotli?: boolean;
   gzip?: boolean;
+  zstd?: boolean;
   onNoMatch?: (req: Request) => Response;
   setHeaders?: (headers: Headers, pathname: string, stats: Stats) => Headers;
 }
@@ -144,12 +145,14 @@ function send(
 const ENCODING: Record<string, string> = {
   '.br': 'br',
   '.gz': 'gzip',
+  '.zst': 'zstd',
 };
 
 function toHeaders(name: string, stats: Stats, isEtag: boolean) {
-  const enc = ENCODING[name.slice(-3)];
+  const ext = ['.br', '.gz', '.zst'].find(x => name.endsWith(x));
+  const enc = ext && ENCODING[ext];
 
-  let ctype = lookup(name.slice(0, enc ? -3 : undefined)) || '';
+  let ctype = lookup(ext ? name.slice(0, -ext.length) : name) || '';
   if (ctype === 'text/html') ctype += ';charset=utf-8';
 
   const headers = new Headers({
@@ -173,6 +176,7 @@ export default function (dir: string, opts: Options = {}): RequestHandler {
   const extensions = opts.extensions || ['html', 'htm'];
   const gzips = opts.gzip && extensions.map(x => `${x}.gz`).concat('gz');
   const brots = opts.brotli && extensions.map(x => `${x}.br`).concat('br');
+  const zsts = opts.zstd && extensions.map(x => `${x}.zst`).concat('zst');
 
   const FILES: Record<string, { abs: string; stats: Stats; headers: Headers }> =
     {};
@@ -214,7 +218,7 @@ export default function (dir: string, opts: Options = {}): RequestHandler {
 
     let headers = toHeaders(name, stats, isEtag);
     if (CacheControl) headers.set('Cache-Control', CacheControl);
-    if (gzips || brots) headers.set('Vary', 'Accept-Encoding');
+    if (gzips || brots || zsts) headers.set('Vary', 'Accept-Encoding');
 
     // setHeaders is deterministic per file, so apply it once here instead
     // of cloning + mutating the cached headers on every request
@@ -243,9 +247,10 @@ export default function (dir: string, opts: Options = {}): RequestHandler {
     if (!req.headers.has('range')) {
       const val = req.headers.get('accept-encoding') || '';
       if (gzips && val.includes('gzip')) extns.unshift(...gzips);
+      if (zsts && /\bzstd\b/i.test(val)) extns.unshift(...zsts);
       if (brots && /(br|brotli)/i.test(val)) extns.unshift(...brots);
     }
-    extns.push(...extensions); // [...br, ...gz, orig, ...exts]
+    extns.push(...extensions); // [...br, ...zst, ...gz, orig, ...exts]
 
     if (pathname.indexOf('%') !== -1) {
       try {

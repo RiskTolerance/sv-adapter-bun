@@ -36,6 +36,7 @@ function serve(path: string, client: boolean = false) {
       etag: true,
       gzip: true,
       brotli: true,
+      zstd: true,
       setHeaders: client
         ? (headers, pathname) => {
             if (pathname.startsWith(`/${manifest.appDir}/immutable/`)) {

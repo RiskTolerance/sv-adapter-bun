@@ -7,6 +7,7 @@ import {
   type BundleConfig,
   type Bundler,
 } from './src/internal/bundle';
+import { zstd_compress_dir } from './src/internal/compress';
 import { patch_server_websocket_handler } from './src/internal/websocket_patch';
 
 interface AdapterOptions {
@@ -78,10 +79,19 @@ export default function (options: AdapterOptions = {}): Adapter {
 
       if (precompress) {
         builder.log.minor('Compressing assets');
+        // kit's builder.compress emits gzip + brotli; zstd is ours
         await Promise.all([
           builder.compress(`${out}/client`),
           builder.compress(`${out}/prerendered`),
         ]);
+        const zstd_ok =
+          (await zstd_compress_dir(`${out}/client`)) &&
+          (await zstd_compress_dir(`${out}/prerendered`));
+        if (!zstd_ok) {
+          builder.log.warn(
+            'Skipping zstd precompression — requires Bun or Node >= 22.15 at build time'
+          );
+        }
       }
 
       builder.log.minor('Building server');

@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Added
+
+- **zstd precompression and serving** (upstream
+  [#84](https://github.com/gornostay25/svelte-adapter-bun/issues/84)):
+  `precompress: true` now also emits `.zst` variants (level 19, same file
+  selection as kit's gzip/brotli pass, skipped when compression would
+  inflate) and the static server negotiates `Accept-Encoding: zstd` —
+  preference order brotli > zstd > gzip. Building needs Bun or Node >= 22.15
+  for the zstd pass; otherwise it is skipped with a warning.
+
 ## 1.4.0 — 2026-06-12
 
 ### Added
