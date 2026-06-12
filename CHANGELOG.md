@@ -2,7 +2,21 @@
 
 ## Unreleased
 
+### Added
+
+- **`websockets` adapter option** (default `true`): set `false` for apps
+  without WebSockets to skip patching kit's built server entirely — no
+  exposure to kit-internals drift, plain HTTP serving.
+
 ### Fixed
+
+- **WebSocket patch works when the bundler splits `get_hooks()` into a
+  chunk** (seen with SvelteKit 2.57+): the patch previously only searched
+  `index.js`, but chunking is decided per-app by the bundler, so builds
+  failed with "could not declare the websocket binding inside get_hooks()".
+  All emitted server files (`index.js` + `chunks/*.js`) are now searched and
+  a pattern only fails the build when it matches no file. Examples are
+  pinned to kit 2.65 so default CI exercises current kit.
 
 - **Range requests no longer serve byte slices of precompressed variants**:
   a `Range` request from a client that also sent `Accept-Encoding: br/gzip`

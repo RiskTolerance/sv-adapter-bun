@@ -1,6 +1,6 @@
 import type { Adapter, Builder } from '@sveltejs/kit';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import { existsSync, readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import {
   bundle_server,
@@ -25,6 +25,12 @@ interface AdapterOptions {
    * Node or Bun and requires rolldown in your devDependencies.
    */
   bundler?: Bundler;
+  /**
+   * Patch the built server to expose the websocket hook (default true). Set
+   * false for apps without WebSockets to skip rewriting kit internals
+   * entirely — the server then runs plain HTTP.
+   */
+  websockets?: boolean;
 }
 
 const files = fileURLToPath(new URL('./files', import.meta.url).href);
@@ -37,6 +43,7 @@ export default function (options: AdapterOptions = {}): Adapter {
     serveAssets = true,
     idleTimeout,
     bundler = 'bun',
+    websockets = true,
   } = options;
 
   if (bundler !== 'bun' && bundler !== 'rolldown') {
@@ -134,12 +141,14 @@ export default function (options: AdapterOptions = {}): Adapter {
         }
       }
 
-      builder.log.minor('Patching server for WebSocket support');
-      const hooks_file = builder.config.kit.files.hooks.server;
-      const has_server_hooks = builder.config.kit.moduleExtensions.some(ext =>
-        existsSync(`${hooks_file}${ext}`)
-      );
-      patchServerWebsocketHandler(`${out}/server/index.js`, has_server_hooks);
+      if (websockets) {
+        builder.log.minor('Patching server for WebSocket support');
+        const hooks_file = builder.config.kit.files.hooks.server;
+        const has_server_hooks = builder.config.kit.moduleExtensions.some(ext =>
+          existsSync(`${hooks_file}${ext}`)
+        );
+        patchServerWebsocketHandler(`${out}/server`, has_server_hooks);
+      }
 
       builder.copy(files, out, {
         replace: {
@@ -171,13 +180,33 @@ export default function (options: AdapterOptions = {}): Adapter {
 }
 
 /**
- * Patch sveltekit server to return the websocket handler. Throws when kit's
- * internals no longer match the patch patterns.
+ * Patch sveltekit server to return the websocket handler. The bundler
+ * decides per-app whether get_hooks() ends up in index.js or a shared chunk,
+ * so the whole emitted file set is searched. Throws when kit's internals no
+ * longer match the patch patterns.
  */
-function patchServerWebsocketHandler(path: string, has_server_hooks: boolean) {
-  const content = readFileSync(path, 'utf-8');
-  writeFileSync(
-    path,
-    patch_server_websocket_handler(content, has_server_hooks)
+function patchServerWebsocketHandler(
+  server_dir: string,
+  has_server_hooks: boolean
+) {
+  const files = new Map<string, string>();
+  files.set(
+    `${server_dir}/index.js`,
+    readFileSync(`${server_dir}/index.js`, 'utf-8')
   );
+
+  const chunks_dir = `${server_dir}/chunks`;
+  if (existsSync(chunks_dir)) {
+    for (const name of readdirSync(chunks_dir)) {
+      if (name.endsWith('.js')) {
+        const path = `${chunks_dir}/${name}`;
+        files.set(path, readFileSync(path, 'utf-8'));
+      }
+    }
+  }
+
+  const patched = patch_server_websocket_handler(files, has_server_hooks);
+  for (const [path, content] of patched) {
+    writeFileSync(path, content);
+  }
 }
