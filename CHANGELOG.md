@@ -2,6 +2,19 @@
 
 ## Unreleased
 
+### Verified
+
+- **WebSocket pub/sub works through the adapter** (upstream
+  [#66](https://github.com/gornostay25/svelte-adapter-bun/issues/66) is moot
+  on the current architecture): `ws.subscribe`/`ws.publish` in the websocket
+  hooks, and `event.platform.server.publish(...)` from any route or hook —
+  the full Bun server instance is on `platform`. README documents the
+  pattern; the websocket example and integration tests exercise both paths.
+- **Streamed load promises stream** (upstream
+  [#44](https://github.com/gornostay25/svelte-adapter-bun/issues/44)): the
+  page shell flushes before slow promises settle; a demo route and a chunk
+  timing test keep it that way.
+
 ### Added
 
 - **zstd precompression and serving** (upstream
