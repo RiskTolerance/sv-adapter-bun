@@ -94,51 +94,81 @@ function is404(req: Request) {
   });
 }
 
+export type RangeResult =
+  | { kind: 'range'; start: number; end: number }
+  // syntactically invalid specs (reversed bounds, non-bytes units,
+  // multipart ranges we don't support) — RFC 7233 says ignore the header
+  | { kind: 'invalid' }
+  // syntactically valid but nothing to serve — 416
+  | { kind: 'unsatisfiable' };
+
+export function parse_range(value: string, size: number): RangeResult {
+  // single byte range only; multipart ranges fall through to a full 200,
+  // which RFC 7233 permits (a server MAY ignore the Range header)
+  const m = /^bytes=(\d*)-(\d*)$/.exec(value.trim());
+  if (!m) return { kind: 'invalid' };
+  const [, first, last] = m;
+
+  if (first === '' && last === '') return { kind: 'invalid' };
+  if (size === 0) return { kind: 'unsatisfiable' };
+
+  if (first === '') {
+    // suffix range: the last N bytes
+    const n = Number(last);
+    if (n === 0) return { kind: 'unsatisfiable' };
+    return { kind: 'range', start: Math.max(0, size - n), end: size - 1 };
+  }
+
+  const start = Number(first);
+  if (start >= size) return { kind: 'unsatisfiable' };
+
+  if (last === '') return { kind: 'range', start, end: size - 1 };
+
+  const end = Number(last);
+  if (end < start) return { kind: 'invalid' };
+  return { kind: 'range', start, end: Math.min(end, size - 1) };
+}
+
 function send(
   req: Request,
   data: { abs: string; stats: Stats; headers: Headers }
 ) {
-  let code = 200;
-  const opts: { end: number; start: number } = { end: 0, start: 0 };
+  const range_header = req.headers.get('range');
 
-  if (req.headers.has('range')) {
-    code = 206;
-    // clone — the cached headers must not carry range fields
-    data = { ...data, headers: new Headers(data.headers) };
-    const [x, y] = req.headers.get('range')!.replace('bytes=', '').split('-');
-    if (x !== undefined && y !== undefined) {
-      let end = (opts.end = parseInt(y, 10) || data.stats.size - 1);
-      const start = (opts.start = parseInt(x, 10) || 0);
+  if (range_header) {
+    const range = parse_range(range_header, data.stats.size);
 
-      if (end >= data.stats.size) {
-        end = data.stats.size - 1;
-      }
-
-      if (start >= data.stats.size) {
-        data.headers.set('Content-Range', `bytes */${data.stats.size}`);
-        return new Response(null, {
-          headers: data.headers,
-          status: 416,
-        });
-      }
-
-      data.headers.set(
-        'Content-Range',
-        `bytes ${start}-${end}/${data.stats.size}`
-      );
-      data.headers.set('Content-Length', (end - start + 1).toString());
-      data.headers.set('Accept-Ranges', 'bytes');
-
-      return new Response(Bun.file(data.abs).slice(opts.start, opts.end + 1), {
-        headers: data.headers,
-        status: code,
-      });
+    if (range.kind === 'unsatisfiable') {
+      // clone — the cached headers must not carry range fields
+      const headers = new Headers(data.headers);
+      headers.delete('Content-Length');
+      headers.set('Content-Range', `bytes */${data.stats.size}`);
+      return new Response(null, { headers, status: 416 });
     }
+
+    if (range.kind === 'range') {
+      const headers = new Headers(data.headers);
+      headers.set(
+        'Content-Range',
+        `bytes ${range.start}-${range.end}/${data.stats.size}`
+      );
+      headers.set('Content-Length', (range.end - range.start + 1).toString());
+      headers.set('Accept-Ranges', 'bytes');
+      return new Response(
+        Bun.file(data.abs).slice(range.start, range.end + 1),
+        {
+          headers,
+          status: 206,
+        }
+      );
+    }
+
+    // invalid spec — ignore the header and serve the full file
   }
 
   return new Response(Bun.file(data.abs), {
     headers: data.headers,
-    status: code,
+    status: 200,
   });
 }
 

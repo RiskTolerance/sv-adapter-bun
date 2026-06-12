@@ -1,5 +1,18 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- **RFC 7233 range parsing** (also reported upstream as
+  [#65](https://github.com/gornostay25/svelte-adapter-bun/issues/65)):
+  suffix ranges (`bytes=-5`) returned the _first_ six bytes instead of the
+  last five; `bytes=0-0` returned the whole file; reversed bounds
+  (`bytes=8-3`) and non-bytes units (`items=0-5`) produced malformed 206
+  responses. Invalid specs now serve a full 200 per RFC, unsatisfiable
+  ranges get a proper 416 with `Content-Range: bytes */size`, and suffix /
+  open-ended / clamped ranges behave to spec.
+
 ## 1.5.0 — 2026-06-12
 
 ### Verified
