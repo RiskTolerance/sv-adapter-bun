@@ -1,5 +1,23 @@
 # Changelog
 
+## Unreleased
+
+### Changed
+
+- **Default `'bun'` bundler falls back to rolldown on a chunk naming
+  conflict**: some dependency graphs (e.g. apps using `better-auth`) make
+  `Bun.build` fail with _"Multiple files share the same output path"_. When
+  that happens and rolldown is installed, the adapter now retries the bundle
+  with rolldown automatically and logs a one-line warning, instead of failing
+  the build. README now recommends `bundler: 'rolldown'` for non-trivial
+  apps.
+
+### Internal
+
+- The zstd serving integration test no longer depends on the ambient Node
+  version of the build runtime (it asserts serving only when the build
+  emitted `.zst` variants; see [#21](https://github.com/RiskTolerance/sv-adapter-bun/issues/21)).
+
 ## 1.6.0 — 2026-06-12
 
 ### Changed
