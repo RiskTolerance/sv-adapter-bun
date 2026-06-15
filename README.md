@@ -75,7 +75,15 @@ Default idle timeout for the server in seconds — see the [`IDLE_TIMEOUT`](#idl
 
 ### bundler
 
-Which bundler produces the server bundle. Default: `'bun'` (uses `Bun.build`, requires Bun >= 1.3.6 at build time). Set `'rolldown'` to bundle with [rolldown](https://rolldown.rs) instead — it runs in-process under Node or Bun, so it avoids the Bun subprocess when building with plain `vite build`; add rolldown to your devDependencies to use it. Benchmarks on the demo app show both well under 50 ms, so pick by environment rather than speed.
+Which bundler produces the server bundle. Default: `'bun'` (uses `Bun.build`, requires Bun >= 1.3.6 at build time).
+
+Set `'rolldown'` to bundle with [rolldown](https://rolldown.rs) instead — it runs in-process under Node or Bun (no Bun subprocess when building with plain `vite build`), and it chunks some dependency graphs that `Bun.build` cannot yet (e.g. apps using `better-auth`, where `Bun.build` fails with _"Multiple files share the same output path"_). **For non-trivial apps, rolldown is the recommended bundler.** Add it to your devDependencies (`bun add -d rolldown`) and set:
+
+```js
+adapter({ bundler: 'rolldown' });
+```
+
+If you stay on the default `'bun'` bundler and it hits that chunk naming conflict, the adapter automatically falls back to rolldown when it is installed, logging a one-line warning. Installing rolldown is therefore enough to avoid the failure even without setting the option. Benchmarks on the demo app show both bundlers well under 50 ms, so pick by robustness and environment rather than speed.
 
 ### websockets
 

@@ -25,16 +25,97 @@ export interface BundleConfig {
   external_packages: string[];
 }
 
+// Bun.build cannot always chunk a dependency graph: some packages (e.g.
+// better-auth) make it emit two chunks with the same output path, failing
+// with "Multiple files share the same output path". rolldown handles these.
+const CHUNK_COLLISION = /share the same output path/i;
+
+/** Collects every message string reachable from a thrown value. */
+function error_messages(err: unknown): string[] {
+  if (err == null) return [];
+  if (typeof err === 'string') return [err];
+  const out: string[] = [];
+  const message = (err as { message?: unknown }).message;
+  if (typeof message === 'string') out.push(message);
+  // AggregateError.errors, and the Bun build logs we wrap in one
+  const nested =
+    (err as { errors?: unknown }).errors ?? (err as { logs?: unknown }).logs;
+  if (Array.isArray(nested)) {
+    for (const item of nested) out.push(...error_messages(item));
+  }
+  const cause = (err as { cause?: unknown }).cause;
+  if (cause) out.push(...error_messages(cause));
+  return out;
+}
+
+export function is_chunk_collision(err: unknown): boolean {
+  return error_messages(err).some(m => CHUNK_COLLISION.test(m));
+}
+
+async function has_rolldown(): Promise<boolean> {
+  try {
+    await import('rolldown');
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+export interface BundleImpls {
+  bun: (config: BundleConfig) => Promise<void>;
+  rolldown: (config: BundleConfig) => Promise<void>;
+  hasRolldown: () => Promise<boolean>;
+  warn: (message: string) => void;
+}
+
+const DEFAULT_IMPLS: BundleImpls = {
+  bun: bundle_with_bun,
+  rolldown: bundle_with_rolldown,
+  hasRolldown: has_rolldown,
+  warn: message => console.warn(message),
+};
+
 /**
  * Bundles the kit server output. The bun bundler must run in a Bun process
  * (either the adapter itself under `bun --bun vite build`, or the subprocess
  * spawned by the adapter); rolldown runs in-process under Node or Bun.
+ *
+ * When the default bun bundler hits a chunk naming conflict, this falls back
+ * to rolldown if it is installed — turning a hard failure into a transparent
+ * recovery. The impls parameter exists for tests.
  */
-export async function bundle_server(config: BundleConfig): Promise<void> {
+export async function bundle_server(
+  config: BundleConfig,
+  impls: Partial<BundleImpls> = {}
+): Promise<void> {
+  const { bun, rolldown, hasRolldown, warn } = { ...DEFAULT_IMPLS, ...impls };
+
   if (config.bundler === 'rolldown') {
-    return bundle_with_rolldown(config);
+    return rolldown(config);
   }
-  return bundle_with_bun(config);
+
+  try {
+    return await bun(config);
+  } catch (err) {
+    if (!is_chunk_collision(err)) throw err;
+
+    if (await hasRolldown()) {
+      warn(
+        'svelte-adapter-bun: Bun.build hit a chunk naming conflict; retrying ' +
+          "with rolldown. Set the bundler: 'rolldown' adapter option to use " +
+          'rolldown directly and silence this warning.'
+      );
+      return rolldown(config);
+    }
+
+    throw new Error(
+      'Bun.build failed with a chunk naming conflict (some dependency ' +
+        'graphs, such as better-auth, trigger this). Install rolldown ' +
+        '(bun add -d rolldown) for an automatic fallback, or set the ' +
+        "bundler: 'rolldown' adapter option.",
+      { cause: err }
+    );
+  }
 }
 
 async function bundle_with_bun(config: BundleConfig): Promise<void> {
