@@ -2,7 +2,7 @@
 
 [![CI](https://github.com/RiskTolerance/sv-adapter-bun/actions/workflows/ci.yml/badge.svg)](https://github.com/RiskTolerance/sv-adapter-bun/actions/workflows/ci.yml)
 
-[Adapter](https://kit.svelte.dev/docs/adapters) for SvelteKit apps that generates a standalone [Bun](https://github.com/oven-sh/bun) server.
+[Adapter](https://svelte.dev/docs/kit/adapters) for SvelteKit apps that generates a standalone [Bun](https://github.com/oven-sh/bun) server.
 
 > [!NOTE]
 > This is a maintained fork of [gornostay25/svelte-adapter-bun](https://github.com/gornostay25/svelte-adapter-bun), which has been inactive since October 2025. This fork tracks upstream issues, ships security and compatibility fixes, and is tested in CI against current Bun and SvelteKit releases. Issues and PRs are welcome at [RiskTolerance/sv-adapter-bun](https://github.com/RiskTolerance/sv-adapter-bun).
@@ -10,7 +10,7 @@
 ## :zap: Usage
 
 > [!NOTE]
-> Building requires Bun >= 1.3.6 — the server is bundled with `Bun.build`. Plain `vite build` (under Node) works too: the adapter spawns a `bun` subprocess for the bundling step, so the `bun` executable must be on `PATH`.
+> The generated server runs on Bun. The build step uses rolldown by default and falls back to `Bun.build` with a warning if rolldown fails. If fallback is needed while plain `vite build` is running under Node, the `bun` executable must be on `PATH`.
 
 Install with `bun add -d @risk-tolerance/svelte-adapter-bun`, then add the adapter to your `svelte.config.js`:
 
@@ -50,6 +50,8 @@ export default {
       envPrefix: 'MY_CUSTOM_',
       precompress: true,
       idleTimeout: 30,
+      bundler: 'rolldown',
+      websockets: true,
     }),
   },
 };
@@ -75,15 +77,17 @@ Default idle timeout for the server in seconds — see the [`IDLE_TIMEOUT`](#idl
 
 ### bundler
 
-Which bundler produces the server bundle. Default: `'bun'` (uses `Bun.build`, requires Bun >= 1.3.6 at build time).
+Which bundler gets the first attempt at producing the server bundle. Default: `'rolldown'`.
 
-Set `'rolldown'` to bundle with [rolldown](https://rolldown.rs) instead — it runs in-process under Node or Bun (no Bun subprocess when building with plain `vite build`), and it chunks some dependency graphs that `Bun.build` cannot yet (e.g. apps using `better-auth`, where `Bun.build` fails with _"Multiple files share the same output path"_). **For non-trivial apps, rolldown is the recommended bundler.** Add it to your devDependencies (`bun add -d rolldown`) and set:
+[rolldown](https://rolldown.rs) runs in-process under Node or Bun (no Bun subprocess when building with plain `vite build`), and it chunks some dependency graphs that `Bun.build` cannot yet (e.g. apps using `better-auth`, where `Bun.build` fails with _"Multiple files share the same output path"_).
+
+Set `'bun'` to try `Bun.build` first:
 
 ```js
-adapter({ bundler: 'rolldown' });
+adapter({ bundler: 'bun' });
 ```
 
-If you stay on the default `'bun'` bundler and it hits that chunk naming conflict, the adapter automatically falls back to rolldown when it is installed, logging a one-line warning. Installing rolldown is therefore enough to avoid the failure even without setting the option. Benchmarks on the demo app show both bundlers well under 50 ms, so pick by robustness and environment rather than speed.
+Whichever bundler runs first, the adapter automatically falls back to the other bundler on failure and logs a warning naming the failed primary. If both fail, the build fails with an aggregate error containing both failures. Benchmarks on the demo app show both bundlers well under 50 ms, so pick by robustness and environment rather than speed.
 
 ### websockets
 
@@ -106,7 +110,7 @@ bun build/index.js
 
 ## :spider_web: WebSocket Server
 
-https://bun.sh/docs/api/websockets
+https://bun.sh/docs/runtime/http/websockets
 
 The server supports WebSocket connections. To enable them, you need to add a `websocket` hook to server hooks.
 
@@ -146,7 +150,7 @@ export const websocket: Bun.WebSocketHandler<undefined> = {
 };
 ```
 
-[Bun's pub/sub](https://bun.sh/docs/api/websockets#pub-sub) works through the adapter: subscribe sockets in the `websocket` handlers (`ws.subscribe('room')`, broadcast with `ws.publish`), and publish from any server route or hook through the Bun server instance on `event.platform`:
+[Bun's pub/sub](https://bun.sh/docs/runtime/http/websockets#pub-sub) works through the adapter: subscribe sockets in the `websocket` handlers (`ws.subscribe('room')`, broadcast with `ws.publish`), and publish from any server route or hook through the Bun server instance on `event.platform`:
 
 ```ts
 // src/routes/broadcast/+server.ts
@@ -160,7 +164,7 @@ For detailed documentation, examples, and advanced usage patterns, visit the [We
 
 ## :desktop_computer: Environment variables
 
-> Bun automatically reads configuration from `.env.local`, `.env.development` and `.env`
+> Bun automatically reads configuration from `.env`, the mode-specific file matching `NODE_ENV` (`.env.production`, `.env.development`, or `.env.test`), and `.env.local`.
 
 ### `PORT` and `HOST`
 
@@ -203,7 +207,7 @@ You can also specify a `PORT_HEADER` if your proxy forwards a non-standard port.
 
 ### `ADDRESS_HEADER` and `XFF_DEPTH`
 
-The [RequestEvent](https://kit.svelte.dev/docs/types#additional-types-requestevent) object passed to hooks and endpoints includes an `event.clientAddress` property representing the client's IP address. [Bun.js haven't got functionality](https://github.com/Jarred-Sumner/bun/issues/518) to get client's IP address, so SvelteKit will receive `127.0.0.1` or if your server is behind one or more proxies (such as a load balancer), you can get an IP address from headers, so we need to specify an `ADDRESS_HEADER` to read the address from:
+The [RequestEvent](https://svelte.dev/docs/kit/%40sveltejs-kit#RequestEvent) object passed to hooks and endpoints includes an `event.getClientAddress()` function. By default, the adapter reads the client address from Bun's `server.requestIP(request)`. If your server is behind one or more proxies (such as a load balancer), specify `ADDRESS_HEADER` to read the address from a trusted proxy header instead:
 
 ```
 ADDRESS_HEADER=True-Client-IP bun build/index.js

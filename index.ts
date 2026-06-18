@@ -20,9 +20,9 @@ interface AdapterOptions {
    */
   idleTimeout?: number;
   /**
-   * Which bundler produces the server bundle. 'bun' (default) uses Bun.build
-   * and needs Bun >= 1.3.6 at build time; 'rolldown' runs in-process under
-   * Node or Bun and requires rolldown in your devDependencies.
+   * Which bundler gets the first attempt at producing the server bundle.
+   * 'rolldown' (default) runs in-process under Node or Bun; 'bun' uses
+   * Bun.build first. Either choice falls back to the other bundler on failure.
    */
   bundler?: Bundler;
   /**
@@ -42,7 +42,7 @@ export default function (options: AdapterOptions = {}): Adapter {
     envPrefix = '',
     serveAssets = true,
     idleTimeout,
-    bundler = 'bun',
+    bundler = 'rolldown',
     websockets = true,
   } = options;
 
@@ -148,16 +148,9 @@ export default function (options: AdapterOptions = {}): Adapter {
         }),
       };
 
-      // The bun bundler needs Bun.build (Bun >= 1.3.6 — older versions
-      // produced a bundle that threw lifecycle_outside_component at runtime,
-      // upstream #82). Under `bun --bun vite build` the Bun global is right
-      // here; under plain `vite build` (Node) we delegate to a Bun
-      // subprocess. Rolldown runs in-process either way.
-      if (bundler === 'rolldown' || typeof Bun !== 'undefined') {
-        await bundle_server(bundle_config);
-      } else {
+      const bundle_with_bun_subprocess = async (config: BundleConfig) => {
         const config_path = `${tmp}/bundle-config.json`;
-        writeFileSync(config_path, JSON.stringify(bundle_config));
+        writeFileSync(config_path, JSON.stringify(config));
         const worker = fileURLToPath(
           new URL('./bundle-worker.js', import.meta.url)
         );
@@ -171,6 +164,15 @@ export default function (options: AdapterOptions = {}): Adapter {
               `(or run the build with 'bun --bun vite build').`
           );
         }
+      };
+
+      // Rolldown runs in-process under Node or Bun. Bun.build needs a Bun
+      // process; when vite runs under Node, use a subprocess for explicit Bun
+      // builds or for fallback after a rolldown failure.
+      if (typeof Bun !== 'undefined') {
+        await bundle_server(bundle_config);
+      } else {
+        await bundle_server(bundle_config, { bun: bundle_with_bun_subprocess });
       }
 
       let websocket_hooks_path: string;

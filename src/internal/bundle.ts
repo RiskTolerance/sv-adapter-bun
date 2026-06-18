@@ -25,9 +25,8 @@ export interface BundleConfig {
   external_packages: string[];
 }
 
-// Bun.build cannot always chunk a dependency graph: some packages (e.g.
-// better-auth) make it emit two chunks with the same output path, failing
-// with "Multiple files share the same output path". rolldown handles these.
+// Kept as a targeted helper because this Bun.build failure is common enough
+// to document, even though fallback now applies to any bundler failure.
 const CHUNK_COLLISION = /share the same output path/i;
 
 /** Collects every message string reachable from a thrown value. */
@@ -52,26 +51,19 @@ export function is_chunk_collision(err: unknown): boolean {
   return error_messages(err).some(m => CHUNK_COLLISION.test(m));
 }
 
-async function has_rolldown(): Promise<boolean> {
-  try {
-    await import('rolldown');
-    return true;
-  } catch {
-    return false;
-  }
+function first_error_message(err: unknown): string {
+  return error_messages(err)[0] ?? 'unknown error';
 }
 
 export interface BundleImpls {
   bun: (config: BundleConfig) => Promise<void>;
   rolldown: (config: BundleConfig) => Promise<void>;
-  hasRolldown: () => Promise<boolean>;
   warn: (message: string) => void;
 }
 
 const DEFAULT_IMPLS: BundleImpls = {
   bun: bundle_with_bun,
   rolldown: bundle_with_rolldown,
-  hasRolldown: has_rolldown,
   warn: message => console.warn(message),
 };
 
@@ -80,48 +72,47 @@ const DEFAULT_IMPLS: BundleImpls = {
  * (either the adapter itself under `bun --bun vite build`, or the subprocess
  * spawned by the adapter); rolldown runs in-process under Node or Bun.
  *
- * When the default bun bundler hits a chunk naming conflict, this falls back
- * to rolldown if it is installed — turning a hard failure into a transparent
- * recovery. The impls parameter exists for tests.
+ * The selected bundler is the primary. Any primary failure logs a warning and
+ * retries with the other bundler. If both fail, the thrown AggregateError
+ * keeps both original failures for diagnosis. The impls parameter exists for
+ * tests.
  */
 export async function bundle_server(
   config: BundleConfig,
   impls: Partial<BundleImpls> = {}
 ): Promise<void> {
-  const { bun, rolldown, hasRolldown, warn } = { ...DEFAULT_IMPLS, ...impls };
-
-  if (config.bundler === 'rolldown') {
-    return rolldown(config);
-  }
+  const { bun, rolldown, warn } = { ...DEFAULT_IMPLS, ...impls };
+  const run = { bun, rolldown };
+  const label = {
+    bun: 'Bun.build',
+    rolldown: 'rolldown',
+  } satisfies Record<Bundler, string>;
+  const primary = config.bundler;
+  const fallback: Bundler = primary === 'rolldown' ? 'bun' : 'rolldown';
 
   try {
-    return await bun(config);
-  } catch (err) {
-    if (!is_chunk_collision(err)) throw err;
-
-    if (await hasRolldown()) {
-      warn(
-        'svelte-adapter-bun: Bun.build hit a chunk naming conflict; retrying ' +
-          "with rolldown. Set the bundler: 'rolldown' adapter option to use " +
-          'rolldown directly and silence this warning.'
-      );
-      return rolldown(config);
-    }
-
-    throw new Error(
-      'Bun.build failed with a chunk naming conflict (some dependency ' +
-        'graphs, such as better-auth, trigger this). Install rolldown ' +
-        '(bun add -d rolldown) for an automatic fallback, or set the ' +
-        "bundler: 'rolldown' adapter option.",
-      { cause: err }
+    return await run[primary](config);
+  } catch (primary_err) {
+    warn(
+      `svelte-adapter-bun: ${label[primary]} failed ` +
+        `(${first_error_message(primary_err)}); retrying with ${label[fallback]}.`
     );
+
+    try {
+      return await run[fallback](config);
+    } catch (fallback_err) {
+      throw new AggregateError(
+        [primary_err, fallback_err],
+        `${label[primary]} failed and fallback ${label[fallback]} failed`
+      );
+    }
   }
 }
 
 async function bundle_with_bun(config: BundleConfig): Promise<void> {
   if (!is_at_least(Bun.version, MIN_BUN_VERSION)) {
     throw new Error(
-      `svelte-adapter-bun requires Bun >= ${MIN_BUN_VERSION} to bundle the server (found ${Bun.version}). Older versions produce a bundle that fails at runtime with lifecycle_outside_component. Alternatively, install rolldown and set the bundler: 'rolldown' adapter option.`
+      `svelte-adapter-bun requires Bun >= ${MIN_BUN_VERSION} when bundling with Bun.build (found ${Bun.version}). Older versions produce a bundle that fails at runtime with lifecycle_outside_component. Use the default rolldown bundler or upgrade Bun.`
     );
   }
 
@@ -159,7 +150,7 @@ async function bundle_with_rolldown(config: BundleConfig): Promise<void> {
     ({ rolldown } = await import('rolldown'));
   } catch {
     throw new Error(
-      "The bundler: 'rolldown' adapter option requires rolldown to be installed — add it to your devDependencies (bun add -d rolldown)."
+      "The rolldown bundler is unavailable. Reinstall @risk-tolerance/svelte-adapter-bun, or set bundler: 'bun' to use Bun.build first."
     );
   }
 

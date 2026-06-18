@@ -2,10 +2,6 @@
 import { manifest, base, prerendered } from 'MANIFEST';
 import { Server } from 'SERVER';
 import { env } from 'ENV';
-// the app's hooks.server module, bundled as its own entrypoint (or a stub
-// when the app has no hooks file / websockets are disabled) — namespace
-// import because the websocket export is optional
-import * as server_hooks from 'WEBSOCKET_HOOKS';
 import type { Server as SvelteKitServer } from '@sveltejs/kit';
 import { existsSync } from 'node:fs';
 import type { RequestHandler } from 'sirv';
@@ -29,6 +25,12 @@ await server.init({
   env: Bun.env as Record<string, string>,
   read: file => Bun.file(`${asset_dir}/${file}`).stream(),
 });
+
+// the app's hooks.server module, bundled as its own entrypoint (or a stub
+// when the app has no hooks file / websockets are disabled) — namespace
+// import because the websocket export is optional. Defer until after init so
+// top-level `$env/dynamic/private` reads in hooks see the runtime env.
+const server_hooks = await import('WEBSOCKET_HOOKS');
 
 function serve(path: string, client: boolean = false) {
   if (existsSync(path)) {

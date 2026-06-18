@@ -1,5 +1,15 @@
 # Changelog
 
+## 1.8.0 — 2026-06-18
+
+### Changed
+
+- **Rolldown is now the default server bundler**. `adapter()` tries rolldown
+  first and falls back to `Bun.build` with a warning if rolldown fails. Set
+  `adapter({ bundler: 'bun' })` to try `Bun.build` first; that path now also
+  falls back to rolldown with a warning if Bun fails. If both bundlers fail,
+  the build reports both errors together.
+
 ## 1.7.0 — 2026-06-15
 
 ### Changed

@@ -8,10 +8,11 @@ import {
 } from './helpers';
 
 let server: RunningServer;
+const bootEnv = { ADAPTER_BUN_TEST_SECRET: 'railway-secret' };
 
 beforeAll(async () => {
   buildExample(WEBSOCKET_DIR);
-  server = await startServer(WEBSOCKET_DIR);
+  server = await startServer(WEBSOCKET_DIR, bootEnv);
 });
 
 afterAll(async () => {
@@ -22,6 +23,12 @@ describe('websocket app', () => {
   test('serves regular HTTP requests', async () => {
     const res = await fetch(`${server.baseUrl}/`);
     expect(res.status).toBe(200);
+  });
+
+  test('populates dynamic private env before hooks module evaluation', async () => {
+    const res = await fetch(`${server.baseUrl}/env-at-hooks-boot`);
+    expect(res.status).toBe(200);
+    expect(await res.text()).toBe(bootEnv.ADAPTER_BUN_TEST_SECRET);
   });
 
   test('upgrades, greets and echoes over /ws', async () => {

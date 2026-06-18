@@ -53,15 +53,20 @@ describe('is_chunk_collision', () => {
   });
 });
 
-describe('bundle_server bun → rolldown fallback', () => {
+describe('bundle_server primary → fallback order', () => {
   const config: BundleConfig = {
-    bundler: 'bun',
+    bundler: 'rolldown',
     entrypoints: ['x.js'],
     outdir: 'out',
     external_packages: [],
   };
 
-  function spy(opts: { bunFails?: unknown; hasRolldown?: boolean } = {}) {
+  function spy(
+    opts: {
+      bunFails?: unknown;
+      rolldownFails?: unknown;
+    } = {}
+  ) {
     const calls: string[] = [];
     const warnings: string[] = [];
     const impls: Partial<BundleImpls> = {
@@ -71,8 +76,8 @@ describe('bundle_server bun → rolldown fallback', () => {
       },
       rolldown: async () => {
         calls.push('rolldown');
+        if (opts.rolldownFails) throw opts.rolldownFails;
       },
-      hasRolldown: async () => opts.hasRolldown ?? true,
       warn: m => warnings.push(m),
     };
     return { calls, warnings, impls };
@@ -83,38 +88,55 @@ describe('bundle_server bun → rolldown fallback', () => {
     'Server bundling failed'
   );
 
-  test('uses bun and never rolldown on success', async () => {
+  test('uses rolldown and never bun on success', async () => {
     const { calls, impls } = spy();
     await bundle_server(config, impls);
+    expect(calls).toEqual(['rolldown']);
+  });
+
+  test('falls back to bun and warns when rolldown fails', async () => {
+    const { calls, warnings, impls } = spy({
+      rolldownFails: new Error('rolldown crashed'),
+    });
+    await bundle_server(config, impls);
+    expect(calls).toEqual(['rolldown', 'bun']);
+    expect(warnings[0]).toContain('rolldown failed');
+    expect(warnings[0]).toContain('Bun.build');
+  });
+
+  test('throws a combined error when rolldown and bun both fail', async () => {
+    const { calls, impls } = spy({
+      rolldownFails: new Error('rolldown crashed'),
+      bunFails: new Error('bun crashed'),
+    });
+    await expect(bundle_server(config, impls)).rejects.toThrow(
+      /rolldown failed and fallback Bun\.build failed/
+    );
+    expect(calls).toEqual(['rolldown', 'bun']);
+  });
+
+  test('bundler: bun uses bun and never rolldown on success', async () => {
+    const { calls, impls } = spy();
+    await bundle_server({ ...config, bundler: 'bun' }, impls);
     expect(calls).toEqual(['bun']);
   });
 
-  test('falls back to rolldown on a chunk collision when available', async () => {
+  test('bundler: bun falls back to rolldown and warns when bun fails', async () => {
     const { calls, warnings, impls } = spy({ bunFails: collision });
-    await bundle_server(config, impls);
+    await bundle_server({ ...config, bundler: 'bun' }, impls);
     expect(calls).toEqual(['bun', 'rolldown']);
+    expect(warnings[0]).toContain('Bun.build failed');
     expect(warnings[0]).toContain('rolldown');
   });
 
-  test('throws a helpful error on collision when rolldown is absent', async () => {
-    const { calls, impls } = spy({ bunFails: collision, hasRolldown: false });
-    await expect(bundle_server(config, impls)).rejects.toThrow(
-      /bun add -d rolldown/
-    );
-    expect(calls).toEqual(['bun']);
-  });
-
-  test('rethrows non-collision build errors without falling back', async () => {
+  test('bundler: bun throws a combined error when bun and rolldown both fail', async () => {
     const { calls, impls } = spy({
-      bunFails: new Error('syntax error in user code'),
+      bunFails: new Error('bun crashed'),
+      rolldownFails: new Error('rolldown crashed'),
     });
-    await expect(bundle_server(config, impls)).rejects.toThrow(/syntax error/);
-    expect(calls).toEqual(['bun']);
-  });
-
-  test('bundler: rolldown skips bun entirely', async () => {
-    const { calls, impls } = spy();
-    await bundle_server({ ...config, bundler: 'rolldown' }, impls);
-    expect(calls).toEqual(['rolldown']);
+    await expect(
+      bundle_server({ ...config, bundler: 'bun' }, impls)
+    ).rejects.toThrow(/Bun\.build failed and fallback rolldown failed/);
+    expect(calls).toEqual(['bun', 'rolldown']);
   });
 });

@@ -1,4 +1,7 @@
+import { env } from '$env/dynamic/private';
 import type { Handle } from '@sveltejs/kit';
+
+export const bootEnv = env.ADAPTER_BUN_TEST_SECRET;
 
 // module-level state shared between the handle hook (imported by kit) and
 // the websocket handlers (imported by the adapter) — proves both see the
