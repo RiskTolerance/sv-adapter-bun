@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.8.1 — 2026-06-18
+
+### Changed
+
+- Reworked the README into a shorter, cleaner guide with a quick start,
+  compact option/runtime configuration tables, and updated WebSocket docs.
+
 ## 1.8.0 — 2026-06-18
 
 ### Changed
