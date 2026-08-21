@@ -6,6 +6,11 @@ SvelteKit adapter that builds a standalone [Bun](https://bun.sh) server.
 
 This is a maintained fork of [gornostay25/svelte-adapter-bun](https://github.com/gornostay25/svelte-adapter-bun), whose last upstream release was in October 2025. This fork tracks upstream issues, ships compatibility and security fixes, and is tested against current Bun and SvelteKit releases.
 
+Bun 1.4 is supported. The compatibility suite covers the minimum supported
+Bun release (1.3.7), the current stable release, and Bun canary. Both the
+default rolldown bundler and the optional `Bun.build` path are exercised end
+to end.
+
 ## Quick Start
 
 Install the adapter:

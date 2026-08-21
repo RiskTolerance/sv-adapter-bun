@@ -1,6 +1,6 @@
 # syntax=docker/dockerfile:1
 # Build arguments
-ARG BUN_VERSION=1.2.22
+ARG BUN_VERSION=1.4.0
 
 # =========================================
 # Stage 1: Build stage

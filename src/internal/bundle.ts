@@ -1,4 +1,4 @@
-export const MIN_BUN_VERSION = '1.3.6';
+export const MIN_BUN_VERSION = '1.3.7';
 
 export type Bundler = 'bun' | 'rolldown';
 
@@ -112,7 +112,7 @@ export async function bundle_server(
 async function bundle_with_bun(config: BundleConfig): Promise<void> {
   if (!is_at_least(Bun.version, MIN_BUN_VERSION)) {
     throw new Error(
-      `svelte-adapter-bun requires Bun >= ${MIN_BUN_VERSION} when bundling with Bun.build (found ${Bun.version}). Older versions produce a bundle that fails at runtime with lifecycle_outside_component. Use the default rolldown bundler or upgrade Bun.`
+      `svelte-adapter-bun requires Bun >= ${MIN_BUN_VERSION} when bundling with Bun.build (found ${Bun.version}). Older versions are known to produce invalid SvelteKit server bundles. Use the default rolldown bundler or upgrade Bun.`
     );
   }
 

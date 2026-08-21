@@ -1,5 +1,36 @@
 # Changelog
 
+## 1.9.0 — 2026-08-21
+
+### Verified
+
+- **Bun 1.4 compatibility**: the adapter build, SvelteKit SSR, streaming,
+  static assets, precompressed responses, range requests, forwarded-header
+  validation, signal-driven process termination, WebSocket upgrades, and pub/sub
+  pass under Bun 1.4.0.
+
+### Internal
+
+- The build now clears `dist` first so removed output files cannot leak into
+  a later npm package.
+- Refreshed the root and tested-example lockfiles with Bun 1.4's audit fixer.
+  Patched current SvelteKit, PostCSS, and nanoid releases remove all but one
+  low-severity advisory that is constrained by SvelteKit's `cookie` range.
+- Repaired the Nginx example's install path: it now uses the maintained
+  scoped package, its Docker image defaults to Bun 1.4 instead of 1.2.22,
+  and CI smoke-builds it on every supported Bun channel.
+- Kept the peer ranges broad (`@sveltejs/kit` 2.4+ and TypeScript 5.x); the
+  Bun upgrade does not require consumers to use the latest minor releases.
+- Added end-to-end coverage that explicitly selects `bundler: 'bun'`,
+  including runtime SSR, Node built-in externalization, and the shared
+  WebSocket hooks module. The existing suite had exercised the default
+  rolldown path twice.
+- Raised the Bun minimum from 1.3.6 to 1.3.7. The new bundler coverage found
+  that Bun 1.3.6 can emit a duplicate export for a SvelteKit WebSocket hooks
+  entrypoint; the same build passes from Bun 1.3.7 onward.
+- CI now tests the declared Bun 1.3.7 minimum alongside current stable and
+  canary releases.
+
 ## 1.8.1 — 2026-06-18
 
 ### Changed

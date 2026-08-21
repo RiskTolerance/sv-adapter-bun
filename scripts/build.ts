@@ -1,7 +1,11 @@
 import { build } from 'bun';
+import { rmSync } from 'node:fs';
 import { version } from '../package.json';
 
 console.log(`Building svelte-adapter-bun v${version}...`);
+
+// Avoid publishing artifacts left behind by an older build layout.
+rmSync('dist', { recursive: true, force: true });
 
 console.time('Build: adapter');
 await build({

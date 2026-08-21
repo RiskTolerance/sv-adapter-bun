@@ -2,6 +2,9 @@
 
 Production deployment setup with Nginx reverse proxy for `svelte-adapter-bun`.
 
+This example installs the published `@risk-tolerance/svelte-adapter-bun`
+package so the Docker build does not depend on files outside its context.
+
 ## Features
 
 - Nginx reverse proxy
