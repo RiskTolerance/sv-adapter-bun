@@ -33,3 +33,16 @@ Manual release checklist for `@risk-tolerance/svelte-adapter-bun`.
 
 7. Create a GitHub release for the tag with the CHANGELOG section as the
    body.
+
+## Prereleases (`next` branch, SvelteKit 3)
+
+The `next` branch carries the 2.x line for `@sveltejs/kit@next`. Bump with a
+prerelease version (`2.0.0-next.N`) and **always** publish with the `next`
+dist-tag so `latest` keeps pointing at the SvelteKit 2 release:
+
+```bash
+npm publish --tag next --otp=<code>
+```
+
+Fixes that apply to both lines land on `main` first and are then merged or
+cherry-picked into `next`.

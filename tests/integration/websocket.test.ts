@@ -135,8 +135,11 @@ describe('websocket app', () => {
         if (text === 'Slava Ukraїni') {
           // socket is open and subscribed — publish via the HTTP endpoint,
           // which uses event.platform.server.publish
+          // non-form content type: kit 3 rejects form-type POSTs that
+          // arrive without a matching Origin header as CSRF
           const res = await fetch(`${server.baseUrl}/broadcast`, {
             method: 'POST',
+            headers: { 'content-type': 'application/octet-stream' },
             body: 'from-http',
           });
           expect(res.status).toBe(200);

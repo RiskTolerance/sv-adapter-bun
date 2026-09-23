@@ -1,18 +1,23 @@
 /* global ENV_PREFIX */
-import { manifest, base, prerendered } from 'MANIFEST';
-import { Server } from 'SERVER';
+import { appDir, base, prerendered } from 'MANIFEST';
+import { server } from 'SERVER';
 import { env } from 'ENV';
-import type { Server as SvelteKitServer } from '@sveltejs/kit';
 import { existsSync } from 'node:fs';
 import type { RequestHandler } from 'sirv';
 import sirv from 'sirv';
 import { get_origin } from './internal/origin';
 
-const server = new Server(manifest) as SvelteKitServer;
-
 const { serveAssets } = BUILD_OPTIONS;
 
-const origin = env('ORIGIN', undefined);
+// kit 3 moved the origin into config (`paths.origin`). The ORIGIN env var
+// still works as a runtime override so existing deployments keep running.
+const env_origin: string | undefined = env('ORIGIN', undefined);
+if (env_origin) {
+  console.warn(
+    `${ENV_PREFIX}ORIGIN is deprecated with SvelteKit 3 — set \`paths.origin\` in your SvelteKit config instead.`
+  );
+}
+const origin = env_origin || BUILD_OPTIONS.origin;
 const xff_depth = parseInt(env('XFF_DEPTH', '1'), 10);
 const address_header = env('ADDRESS_HEADER', '').toLowerCase();
 const protocol_header = env('PROTOCOL_HEADER', '').toLowerCase();
@@ -41,7 +46,7 @@ function serve(path: string, client: boolean = false) {
       zstd: true,
       setHeaders: client
         ? (headers, pathname) => {
-            if (pathname.startsWith(`/${manifest.appDir}/immutable/`)) {
+            if (pathname.startsWith(`/${appDir}/immutable/`)) {
               headers.set('cache-control', 'public,max-age=31536000,immutable');
             }
             return headers;

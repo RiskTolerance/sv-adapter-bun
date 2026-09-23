@@ -1,6 +1,13 @@
 import type { Adapter, Builder } from '@sveltejs/kit';
 import { spawnSync } from 'node:child_process';
-import { existsSync, readFileSync, writeFileSync } from 'node:fs';
+import {
+  existsSync,
+  mkdirSync,
+  readFileSync,
+  rmSync,
+  writeFileSync,
+} from 'node:fs';
+import { basename } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import {
   bundle_server,
@@ -66,15 +73,15 @@ export default function (options: AdapterOptions = {}): Adapter {
     async adapt(builder: Builder) {
       const tmp = builder.getBuildDirectory('adapter-bun');
 
-      builder.rimraf(out);
-      builder.rimraf(tmp);
-      builder.mkdirp(tmp);
+      const { base } = builder.config.paths;
+
+      rmSync(out, { force: true, recursive: true });
+      rmSync(tmp, { force: true, recursive: true });
+      mkdirSync(tmp, { recursive: true });
 
       builder.log.minor('Copying assets');
-      builder.writeClient(`${out}/client${builder.config.kit.paths.base}`);
-      builder.writePrerendered(
-        `${out}/prerendered${builder.config.kit.paths.base}`
-      );
+      builder.writeClient(`${out}/client${base}`);
+      builder.writePrerendered(`${out}/prerendered${base}`);
 
       if (precompress) {
         builder.log.minor('Compressing assets');
@@ -97,43 +104,46 @@ export default function (options: AdapterOptions = {}): Adapter {
 
       builder.writeServer(tmp);
 
+      // kit 3 removed generateManifest — it now emits a module exporting a
+      // ready-made Server instance. manifest.js only carries the metadata
+      // the static file handlers need.
+      builder.generateServerInstance(`${tmp}/server.js`, {
+        serverDirectory: tmp,
+      });
+
       writeFileSync(
         `${tmp}/manifest.js`,
         [
-          `export const manifest = ${builder.generateManifest({ relativePath: './' })};`,
           `export const prerendered = new Set(${JSON.stringify(builder.prerendered.paths)});`,
-          `export const base = ${JSON.stringify(builder.config.kit.paths.base)};`,
+          `export const base = ${JSON.stringify(base)};`,
+          `export const appDir = ${JSON.stringify(builder.config.appDir)};`,
         ].join('\n\n')
       );
 
       const pkg = JSON.parse(readFileSync('package.json', 'utf-8'));
 
-      const entrypoints = [`${tmp}/index.js`, `${tmp}/manifest.js`];
+      const entrypoints = [`${tmp}/server.js`, `${tmp}/manifest.js`];
 
-      if (builder.hasServerInstrumentationFile?.()) {
-        entrypoints.push(`${tmp}/instrumentation.server.js`);
+      let initializer: string | undefined;
+      if (builder.hasServerInstrumentationFile()) {
+        // populates $env/dynamic/private before instrumentation runs; it
+        // imports the server's env module, so it must be bundled alongside
+        initializer = builder.createInstrumentationInitializer({
+          outputDirectory: tmp,
+          serverDirectory: tmp,
+        });
+        entrypoints.push(`${tmp}/instrumentation.server.js`, initializer);
       }
 
       // WebSocket support: the app's hooks.server module is bundled as its
       // own entrypoint so the runtime can read its `websocket` export
       // directly. Code splitting dedupes it into a shared chunk, so kit's
       // own dynamic import of the hooks module sees the same instance.
-      const hooks_file = builder.config.kit.files.hooks.server;
-      const has_server_hooks = builder.config.kit.moduleExtensions.some(ext =>
-        existsSync(`${hooks_file}${ext}`)
-      );
-      const bundle_websocket_hooks = websockets && has_server_hooks;
+      // kit only emits entries/hooks.server.js when the app has server hooks.
+      const hooks_entry = `${tmp}/entries/hooks.server.js`;
+      const bundle_websocket_hooks = websockets && existsSync(hooks_entry);
 
       if (bundle_websocket_hooks) {
-        const hooks_entry = `${tmp}/entries/hooks.server.js`;
-        if (!existsSync(hooks_entry)) {
-          throw new Error(
-            `Found a server hooks file but SvelteKit's build output has no ` +
-              `entries/hooks.server.js — kit's output layout has likely ` +
-              `changed. Please report this at ` +
-              `https://github.com/RiskTolerance/sv-adapter-bun/issues`
-          );
-        }
         entrypoints.push(hooks_entry);
       }
 
@@ -204,17 +214,22 @@ export default function (options: AdapterOptions = {}): Adapter {
           ENV: './env.js',
           HANDLER: './handler.js',
           MANIFEST: './server/manifest.js',
-          SERVER: './server/index.js',
+          SERVER: './server/server.js',
           WEBSOCKET_HOOKS: websocket_hooks_path,
           ENV_PREFIX: JSON.stringify(envPrefix),
-          BUILD_OPTIONS: JSON.stringify({ serveAssets, idleTimeout }),
+          BUILD_OPTIONS: JSON.stringify({
+            serveAssets,
+            idleTimeout,
+            origin: builder.config.paths.origin,
+          }),
         },
       });
 
-      if (builder.hasServerInstrumentationFile?.()) {
-        builder.instrument?.({
+      if (initializer) {
+        builder.instrument({
           entrypoint: `${out}/index.js`,
           instrumentation: `${out}/server/instrumentation.server.js`,
+          initializer: `${out}/server/${basename(initializer)}`,
           module: {
             exports: ['path', 'host', 'port', 'server'],
           },

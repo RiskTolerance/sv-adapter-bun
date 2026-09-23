@@ -1,5 +1,42 @@
 # Changelog
 
+## 2.0.0-next.0 — 2026-09-23
+
+Prerelease for SvelteKit 3 (tested against `@sveltejs/kit@3.0.0-next.27`),
+published under the `next` dist-tag. SvelteKit 2 users stay on 1.x.
+
+### Breaking
+
+- Requires `@sveltejs/kit` `^3.0.0-next.27`. SvelteKit 2 is not supported by
+  this line.
+- The `ORIGIN` environment variable is deprecated in favour of SvelteKit's
+  `paths.origin` config. It still overrides the config at runtime, but logs a
+  warning at startup.
+
+### Changed
+
+- The server is built from `builder.generateServerInstance()` (kit 3 removed
+  `generateManifest`).
+- Server instrumentation now bundles kit's instrumentation initializer, so
+  `$env/dynamic/private` / `$app/env/private` are populated before
+  `instrumentation.server.js` runs.
+- WebSocket hooks are detected from kit's build output
+  (`entries/hooks.server.js`) rather than `config.kit.files.hooks.server`,
+  which kit 3 no longer resolves in config.
+- Reads the flattened kit 3 config (`config.paths`, `config.appDir`) and
+  drops the deprecated `builder.rimraf`/`builder.mkdirp` calls.
+- `AdapterOptions` and `Bundler` are now exported types.
+- The TypeScript peer dependency is optional and accepts any version from 5 up
+  (kit 3 requires TypeScript 6).
+
+### Internal
+
+- Examples moved to kit 3: config in `vite.config.ts`, Vite 8,
+  vite-plugin-svelte 7, `#lib` subpath imports, and `$app/tsconfig`. The
+  WebSocket example declares its env var in `src/env.ts`.
+- The pub/sub integration test sends a non-form content type, because kit 3
+  rejects form-type POSTs that have no matching `Origin` header.
+
 ## 1.9.0 — 2026-08-21
 
 ### Verified

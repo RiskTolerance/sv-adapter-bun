@@ -1,9 +1,9 @@
 import type { Adapter } from '@sveltejs/kit';
 import './ambient.js';
 
-type Bundler = 'bun' | 'rolldown';
+export type Bundler = 'bun' | 'rolldown';
 
-interface AdapterOptions {
+export interface AdapterOptions {
   out?: string;
   precompress?: boolean;
   envPrefix?: string;

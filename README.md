@@ -4,6 +4,9 @@
 
 SvelteKit adapter that builds a standalone [Bun](https://bun.sh) server.
 
+> **This is the `next` line (2.x prerelease) for SvelteKit 3** (`@sveltejs/kit@next`).
+> For SvelteKit 2, use the 1.x releases (`@risk-tolerance/svelte-adapter-bun@latest`).
+
 This is a maintained fork of [gornostay25/svelte-adapter-bun](https://github.com/gornostay25/svelte-adapter-bun), whose last upstream release was in October 2025. This fork tracks upstream issues, ships compatibility and security fixes, and is tested against current Bun and SvelteKit releases.
 
 Bun 1.4 is supported. The compatibility suite covers the minimum supported
@@ -16,19 +19,23 @@ to end.
 Install the adapter:
 
 ```sh
-bun add -d @risk-tolerance/svelte-adapter-bun
+bun add -d @risk-tolerance/svelte-adapter-bun@next
 ```
 
-Use it in `svelte.config.js`:
+SvelteKit 3 reads its config from the `sveltekit()` Vite plugin (`svelte.config.js` is no longer supported). Use the adapter in `vite.config.ts`:
 
-```js
+```ts
 import adapter from '@risk-tolerance/svelte-adapter-bun';
+import { sveltekit } from '@sveltejs/kit/vite';
+import { defineConfig } from 'vite';
 
-export default {
-  kit: {
-    adapter: adapter(),
-  },
-};
+export default defineConfig({
+  plugins: [
+    sveltekit({
+      adapter: adapter(),
+    }),
+  ],
+});
 ```
 
 Build and run:
@@ -59,7 +66,7 @@ adapter({
 | `out`         | `'build'`    | Output directory for the generated server.                                                             |
 | `serveAssets` | `true`       | Serve client and prerendered assets from Bun, including HTTP range requests.                           |
 | `precompress` | `true`       | Emit gzip, brotli, and zstd variants for assets and prerendered pages.                                 |
-| `envPrefix`   | `''`         | Prefix for runtime adapter env vars such as `PORT`, `ORIGIN`, and `BODY_SIZE_LIMIT`.                   |
+| `envPrefix`   | `''`         | Prefix for runtime adapter env vars such as `PORT`, `HOST`, and `BODY_SIZE_LIMIT`.                     |
 | `idleTimeout` | `undefined`  | Build-time default for Bun's idle timeout. Runtime `IDLE_TIMEOUT` wins.                                |
 | `bundler`     | `'rolldown'` | Primary server bundler: `'rolldown'` or `'bun'`. The other bundler is used as fallback.                |
 | `websockets`  | `true`       | Bundle `hooks.server` so the adapter can read its `websocket` export. Set `false` for plain HTTP apps. |
@@ -153,7 +160,7 @@ See Bun's [WebSocket docs](https://bun.sh/docs/runtime/http/websockets) and this
 
 Bun automatically reads `.env`, the mode-specific file matching `NODE_ENV` (`.env.production`, `.env.development`, or `.env.test`), and `.env.local`.
 
-All adapter runtime variables can be prefixed with `envPrefix`. For example, `adapter({ envPrefix: 'MY_APP_' })` makes the server read `MY_APP_PORT`, `MY_APP_ORIGIN`, and so on.
+All adapter runtime variables can be prefixed with `envPrefix`. For example, `adapter({ envPrefix: 'MY_APP_' })` makes the server read `MY_APP_PORT`, `MY_APP_HOST`, and so on.
 
 ### Server Binding
 
@@ -170,11 +177,16 @@ SOCKET_PATH=/tmp/sveltekit.sock bun build/index.js
 
 ### Origin And Proxy Headers
 
-Set `ORIGIN` when you know the public origin:
+Set SvelteKit's `paths.origin` when you know the public origin:
 
-```sh
-ORIGIN=https://example.com bun build/index.js
+```ts
+sveltekit({
+  adapter: adapter(),
+  paths: { origin: 'https://example.com' },
+});
 ```
+
+SvelteKit 3 also uses this value for CSRF checks. The `ORIGIN` environment variable still overrides it at runtime, but it is deprecated and logs a warning at startup.
 
 Or configure trusted reverse-proxy headers:
 
